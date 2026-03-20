@@ -1011,26 +1011,74 @@ async function cerrarSesionMesa(mesaId) {
   } catch(e) { console.error('Error cerrando sesión de mesa:', e); }
 }
 
-// ── Override procesarCobro para cerrar sesión de mesa ──
-var _origProcesarCobro = procesarCobro;
+// ─── COBRO (completo — con cierre de sesión de mesa) ───
 async function procesarCobro() {
-  var mesaIdAntes = currentMesa ? currentMesa.id : null;
-  await _origProcesarCobro();
-  // Si el cobro cerró el pedido, cerrar también la sesión de mesa
-  if (mesaIdAntes && !currentPedidoId) {
-    await cerrarSesionMesa(mesaIdAntes);
-    await refreshMesas();
+  if (metodo === 'efectivo') {
+    var dado = parseFloat(document.getElementById('efecInp').value) || 0;
+    if (dado < getTotal()) { toast('Efectivo insuficiente', 'err'); return; }
   }
-}
+  load(true);
+  try {
+    var cfgArr = await SB.sel('pos_config', 'id=eq.1');
+    var cfg    = cfgArr[0] || {};
+    var newNum = (cfg.lastnum || 0) + 1;
+    await SB.upd('pos_config', {id:1}, {lastnum: newNum});
+    var numFact = (cfg.serie || 'T') + String(newNum).padStart(6, '0');
 
-// ── Realtime: escuchar cambios en pos_mesas (otras mesas abiertos por otros meseros) ──
-var _origHandleRealtime = handleRealtimePedido;
-function handleRealtimePedido(record) {
-  _origHandleRealtime(record);
-}
+    var b10 = 0, b21 = 0;
+    Object.values(orden).forEach(function(o) {
+      if (o.item.iva === 21) b21 += o.item.price * o.qty / 1.21;
+      else                   b10 += o.item.price * o.qty / 1.10;
+    });
+    var q10 = b10 * 0.10, q21 = b21 * 0.21, total = b10 + q10 + b21 + q21;
 
-// También polling de mesas cada 20s (sesion_activa puede cambiar desde admin o TPV)
-setInterval(refreshMesas, 20000);
+    var items = Object.values(orden).map(function(o) {
+      return { id:o.item.id, name:o.item.name, emoji:o.item.emoji,
+               price:Number(o.item.price), iva:o.item.iva, qty:o.qty, nota:o.nota };
+    });
+
+    var factura = {
+      id:         'f' + Date.now(),
+      num:        numFact,
+      pedido_id:  currentPedidoId,
+      mesa_num:   currentMesa ? currentMesa.num : null,
+      items:      items,
+      metodo_pago: metodo,
+      base10: b10.toFixed(4), iva10: q10.toFixed(4),
+      base21: b21.toFixed(4), iva21: q21.toFixed(4),
+      total:  total.toFixed(2),
+      cli_nombre: document.getElementById('fNombre').value,
+      cli_nif:    document.getElementById('fNIF').value,
+      cli_dir:    '',
+      user_id:    currentUser.id,
+    };
+
+    await SB.ins('pos_facturas', factura);
+
+    if (currentPedidoId) {
+      await SB.upd('pos_pedidos', {id: currentPedidoId}, {estado: 'pagado'});
+    }
+
+    // Cerrar sesión de mesa
+    if (currentMesa) {
+      await cerrarSesionMesa(currentMesa.id);
+    }
+
+    closeM('mCobro');
+    printTicket(factura, cfg);
+
+    var mesaIdCobrada = currentMesa ? currentMesa.id : null;
+    orden = {}; currentPedidoId = null; currentMesa = null;
+    renderOrden();
+    await refreshMesas();
+    toast('\u2705 Cobro completado \u2014 ' + numFact, 'ok');
+    setTimeout(function() {
+      navTo('mesas', document.getElementById('nt-mesas'));
+      document.getElementById('nt-comanda').style.display = 'none';
+    }, 1200);
+  } catch(e) { toast('Error al cobrar: ' + e.message, 'err'); }
+  finally { load(false); }
+}
 
 initLogin();
 </script>

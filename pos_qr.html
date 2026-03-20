@@ -126,20 +126,44 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 <div class="carrito-modal" id="carritoModal" onclick="e => { if(e.target===this) closeCarrito(); }">
   <div class="carrito-sheet">
     <div class="sheet-header">
-      <h3>Tu pedido</h3>
+      <div style="display:flex;gap:0;background:var(--border,#e8e6e0);border-radius:10px;padding:3px;flex:1;margin-right:10px">
+        <button id="tabPedidoBtn" onclick="switchTab('pedido')" style="flex:1;padding:7px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:var(--accent,#d4770a);color:#fff;font-family:var(--font,system-ui);transition:.15s">Añadir</button>
+        <button id="tabCuentaBtn" onclick="switchTab('cuenta')" style="flex:1;padding:7px;border:none;border-radius:8px;font-size:13px;font-weight:600;cursor:pointer;background:transparent;color:var(--text2,#6b6b65);font-family:var(--font,system-ui);transition:.15s">Mi cuenta</button>
+      </div>
       <button class="close-btn" onclick="closeCarrito()">✕</button>
     </div>
-    <div class="carrito-items" id="carritoItems"></div>
-    <div class="carrito-footer">
-      <div class="form-group" style="margin-bottom:14px">
-        <div style="font-size:12px;color:var(--text2);margin-bottom:6px">Nota para cocina (opcional)</div>
-        <textarea class="carrito-nota" id="notaGeneral" rows="2" placeholder="Alergias, preferencias..."></textarea>
+
+    <!-- TAB: AÑADIR PEDIDO -->
+    <div id="tabPedido">
+      <div class="carrito-items" id="carritoItems"></div>
+      <div class="carrito-footer">
+        <div class="form-group" style="margin-bottom:14px">
+          <div style="font-size:12px;color:var(--text2);margin-bottom:6px">Nota para cocina (opcional)</div>
+          <textarea class="carrito-nota" id="notaGeneral" rows="2" placeholder="Alergias, preferencias..."></textarea>
+        </div>
+        <div class="total-row">
+          <span class="total-label">Total a añadir</span>
+          <span class="total-val" id="carritoTotal">0,00 €</span>
+        </div>
+        <button class="send-btn" onclick="enviarPedido()">✓ Enviar pedido a cocina</button>
       </div>
-      <div class="total-row">
-        <span class="total-label">Total aproximado</span>
-        <span class="total-val" id="carritoTotal">0,00 €</span>
+    </div>
+
+    <!-- TAB: MI CUENTA -->
+    <div id="tabCuenta" style="display:none">
+      <div style="padding:14px 16px">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:12px;line-height:1.5">
+          Todo lo que has pedido en esta mesa. El total final lo calculará el mesero al cobrar.
+        </div>
+        <div id="cuentaItems" style="margin-bottom:12px"></div>
+        <div style="border-top:1px solid var(--border);padding-top:12px;display:flex;justify-content:space-between;align-items:center">
+          <span style="font-size:14px;font-weight:600">Total acumulado</span>
+          <span style="font-size:22px;font-weight:700;color:var(--accent)" id="cuentaTotal">—</span>
+        </div>
+        <div style="margin-top:10px;font-size:11px;color:var(--text3);text-align:center">
+          IVA incluido · Precios orientativos
+        </div>
       </div>
-      <button class="send-btn" onclick="enviarPedido()">✓ Enviar pedido a cocina</button>
     </div>
   </div>
 </div>
@@ -155,6 +179,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 </div>
 
 <script>
+
 
 'use strict';
 
@@ -363,10 +388,107 @@ function updateCarritoBar() {
 }
 
 function openCarrito() {
+  switchTab('pedido');
   renderCarritoItems();
   document.getElementById('carritoModal').classList.add('open');
 }
 function closeCarrito() { document.getElementById('carritoModal').classList.remove('open'); }
+
+// ─── TABS DEL CARRITO ───
+var activeTab = 'pedido';
+
+function switchTab(tab) {
+  activeTab = tab;
+  var pedidoDiv = document.getElementById('tabPedido');
+  var cuentaDiv = document.getElementById('tabCuenta');
+  var btnPedido = document.getElementById('tabPedidoBtn');
+  var btnCuenta = document.getElementById('tabCuentaBtn');
+
+  if (tab === 'pedido') {
+    if (pedidoDiv) pedidoDiv.style.display = '';
+    if (cuentaDiv) cuentaDiv.style.display = 'none';
+    if (btnPedido) { btnPedido.style.background = 'var(--accent,#d4770a)'; btnPedido.style.color = '#fff'; }
+    if (btnCuenta) { btnCuenta.style.background = 'transparent'; btnCuenta.style.color = 'var(--text2,#6b6b65)'; }
+  } else {
+    if (pedidoDiv) pedidoDiv.style.display = 'none';
+    if (cuentaDiv) cuentaDiv.style.display = '';
+    if (btnPedido) { btnPedido.style.background = 'transparent'; btnPedido.style.color = 'var(--text2,#6b6b65)'; }
+    if (btnCuenta) { btnCuenta.style.background = 'var(--accent,#d4770a)'; btnCuenta.style.color = '#fff'; }
+    loadCuenta();
+  }
+}
+
+async function loadCuenta() {
+  var el = document.getElementById('cuentaItems');
+  var totalEl = document.getElementById('cuentaTotal');
+  if (!el) return;
+
+  if (!mesaId) {
+    el.innerHTML = '<div style="text-align:center;padding:20px;color:var(--text3);font-size:13px">Mesa no identificada</div>';
+    return;
+  }
+
+  el.innerHTML = '<div style="text-align:center;padding:16px;color:var(--text2);font-size:13px">Cargando\u2026</div>';
+
+  try {
+    // Traer todos los pedidos activos de esta mesa
+    var pedidos = await sbSel('pos_pedidos',
+      'mesa_id=eq.' + mesaId + '&estado=in.(abierto,en-cocina,listo)&order=created_at.asc'
+    );
+
+    if (!pedidos.length) {
+      el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">' +
+        '<div style="font-size:36px;margin-bottom:8px">\uD83C\uDF7D\uFE0F</div>' +
+        'A\u00fan no has pedido nada</div>';
+      if (totalEl) totalEl.textContent = '0,00 \u20ac';
+      return;
+    }
+
+    // Merge all items from all active pedidos
+    var allItems = {};
+    pedidos.forEach(function(p) {
+      if (!p.items) return;
+      p.items.forEach(function(item) {
+        var key = item.id || item.name;
+        if (allItems[key]) {
+          allItems[key].qty += item.qty;
+        } else {
+          allItems[key] = Object.assign({}, item);
+        }
+      });
+    });
+
+    var itemsArr = Object.values(allItems);
+    if (!itemsArr.length) {
+      el.innerHTML = '<div style="text-align:center;padding:24px;color:var(--text3);font-size:13px">Sin productos pedidos</div>';
+      if (totalEl) totalEl.textContent = '0,00 \u20ac';
+      return;
+    }
+
+    var totalAcum = 0;
+    var rows = itemsArr.map(function(item) {
+      var subtotal = Number(item.price) * item.qty;
+      totalAcum += subtotal;
+      return '<div style="display:flex;align-items:center;gap:10px;padding:9px 0;border-bottom:1px solid var(--border)">'
+        + '<span style="font-size:22px;flex-shrink:0">' + (item.emoji || '\uD83C\uDF7D\uFE0F') + '</span>'
+        + '<div style="flex:1;min-width:0">'
+        + '<div style="font-size:13px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">' + item.name + '</div>'
+        + (item.nota ? '<div style="font-size:11px;color:var(--text2)">\uD83D\uDCDD ' + item.nota + '</div>' : '')
+        + '</div>'
+        + '<div style="text-align:right;flex-shrink:0">'
+        + '<div style="font-size:11px;color:var(--text2)">' + item.qty + ' \u00d7 ' + Number(item.price).toFixed(2) + '\u20ac</div>'
+        + '<div style="font-size:14px;font-weight:700;color:var(--accent)">' + subtotal.toFixed(2) + '\u20ac</div>'
+        + '</div>'
+        + '</div>';
+    }).join('');
+
+    el.innerHTML = rows;
+    if (totalEl) totalEl.textContent = totalAcum.toFixed(2) + ' \u20ac';
+
+  } catch(e) {
+    el.innerHTML = '<div style="padding:16px;color:#dc2626;font-size:13px">Error al cargar la cuenta: ' + e.message + '</div>';
+  }
+}
 
 function renderCarritoItems() {
   const items = Object.entries(carrito);
