@@ -205,61 +205,73 @@ function showLoader(on) {
 
 // ─── INIT ───
 async function init() {
-  mesaNum = getParam('mesa') || '1';
+  mesaNum = getParam('mesa') || '';
+  if (!mesaNum) { showInputMesa(); return; }
+  await loadMesa(mesaNum);
+}
+
+async function loadMesa(num) {
   showLoader(true);
   try {
-    // Cargar todo en paralelo
-    const [cfgArr, zonas, mesas, catsArr, cartaArr] = await Promise.all([
+    const [cfgArr, mesas, catsArr, cartaArr] = await Promise.all([
       sbSel('pos_config', 'id=eq.1'),
-      sbSel('pos_zonas',  'order=orden.asc'),
       sbSel('pos_mesas',  'activa=eq.true&order=num.asc'),
       sbSel('pos_cats',   'activa=eq.true&order=orden.asc'),
       sbSel('pos_carta',  'active=eq.true&order=orden.asc,name.asc'),
     ]);
-
     cfg   = cfgArr[0] || {};
     cats  = catsArr;
     carta = cartaArr;
 
-    // Encontrar la mesa por número
-    const mesa = mesas.find(m => String(m.num) === String(mesaNum));
-    if (mesa) {
-      mesaId = mesa.id;
-      // Buscar pedido abierto existente para esta mesa
-      const pedidos = await sbSel('pos_pedidos',
-        `mesa_id=eq.${mesaId}&estado=in.(abierto,en-cocina,listo,entregado)&order=created_at.desc&limit=1`
-      );
-      pedidoExistenteId = pedidos[0]?.id || null;
+    const mesa = mesas.find(m => String(m.num) === String(num));
+
+    if (!mesa) {
+      showMesaCerrada('Mesa ' + num + ' no encontrada. Pide al mesero que te indique tu mesa.');
+      return;
     }
 
-    // Setear UI del restaurante
+    if (!mesa.sesion_activa) {
+      showMesaCerrada('Mesa ' + mesa.num + ' no está disponible todavía.\nEl mesero debe abrirla antes de que puedas pedir.');
+      return;
+    }
+
+    mesaId  = mesa.id;
+    mesaNum = String(mesa.num);
+
+    // Buscar pedido activo de esta mesa
+    const pedidos = await sbSel('pos_pedidos',
+      `mesa_id=eq.${mesaId}&estado=in.(abierto,en-cocina,listo)&order=created_at.desc&limit=1`
+    );
+    pedidoExistenteId = pedidos[0]?.id || null;
+
     document.getElementById('restNombre').textContent = cfg.nombre || 'Restaurante';
     document.getElementById('mesaLabel').textContent  = 'Mesa ' + mesaNum;
-    document.title = (cfg.nombre || 'Carta') + ' — Mesa ' + mesaNum;
+    document.title = (cfg.nombre || 'Carta') + ' \u2014 Mesa ' + mesaNum;
+    document.getElementById('header').style.display = '';
+
+    // Quitar pantalla de ingreso si estaba
+    const inputScreen = document.getElementById('mesaInputScreen');
+    if (inputScreen) inputScreen.remove();
 
     renderCarta();
   } catch(e) {
-    document.getElementById('carta').innerHTML = `
-      <div style="text-align:center;padding:60px 20px;color:var(--text3)">
-        <div style="font-size:48px;margin-bottom:16px">⚠️</div>
-        <div style="font-size:16px;font-weight:600">No se pudo cargar la carta</div>
-        <div style="font-size:13px;margin-top:8px;color:var(--text3)">${e.message}</div>
-        <button onclick="location.reload()" style="margin-top:20px;padding:10px 24px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">Reintentar</button>
-      </div>`;
+    document.getElementById('carta').innerHTML =
+      '<div style="text-align:center;padding:60px 20px;color:var(--text3)">'
+      + '<div style="font-size:48px;margin-bottom:16px">\u26A0\uFE0F</div>'
+      + '<div style="font-size:16px;font-weight:600">No se pudo cargar la carta</div>'
+      + '<div style="font-size:13px;margin-top:8px">' + e.message + '</div>'
+      + '<button onclick="location.reload()" style="margin-top:20px;padding:10px 24px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">Reintentar</button>'
+      + '</div>';
   } finally {
     showLoader(false);
   }
 }
 
+
 // ─── RENDER CARTA ───
 function renderCarta() {
   if (!carta.length) {
-    document.getElementById('carta').innerHTML = `
-      <div style="text-align:center;padding:60px 20px;color:var(--text3)">
-        <div style="font-size:48px;margin-bottom:16px">🍽️</div>
-        <div style="font-size:16px;font-weight:600">Carta no disponible</div>
-        <div style="font-size:13px;margin-top:8px">Pide al personal que te atienda</div>
-      </div>`;
+    showMesaCerrada();
     return;
   }
 
@@ -469,6 +481,347 @@ function resetOrden() {
 
 // ─── ARRANCAR ───
 init();
+
+// ─── PANTALLA MESA CERRADA ───
+function showMesaCerrada(msg) {
+  document.getElementById('header').style.display = 'none';
+  document.getElementById('carta').innerHTML = '';
+  document.getElementById('carritoBar').classList.remove('visible');
+  const existing = document.getElementById('mesaInputScreen');
+  if (existing) existing.remove();
+
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;font-family:var(--font,system-ui);gap:16px;';
+  wrap.innerHTML =
+    '<div style="font-size:64px">\uD83D\uDD12</div>'
+    + '<div style="font-size:20px;font-weight:700;color:var(--text,#1a1a18)">Mesa no disponible</div>'
+    + '<div style="font-size:14px;color:var(--text2,#6b6b65);max-width:300px;line-height:1.6">'
+    + (msg || 'Esta mesa no est\u00e1 abierta todav\u00eda.<br>Pide al mesero que la abra para poder pedir.')
+    + '</div>'
+    + '<button onclick="location.reload()" style="margin-top:8px;padding:12px 28px;background:var(--accent,#d4770a);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer;font-family:inherit">'
+    + '&#x21BB; Reintentar'
+    + '</button>'
+    + '<button onclick="showInputMesa()" style="padding:10px 24px;background:none;border:1px solid var(--border,#e8e6e0);border-radius:12px;font-size:13px;cursor:pointer;color:var(--text2,#6b6b65);font-family:inherit">'
+    + 'Cambiar n\u00famero de mesa'
+    + '</button>';
+  document.body.appendChild(wrap);
+}
+
+
+// ─── CARRITO LOGIC ───
+function addItem(id) {
+  const item = carta.find(i => i.id === id);
+  if (!item) return;
+  if (carrito[id]) carrito[id].qty++;
+  else carrito[id] = { item, qty: 1, nota: '' };
+  refreshItem(id);
+  updateCarritoBar();
+  haptic();
+}
+
+function changeItem(id, d) {
+  if (!carrito[id]) return;
+  carrito[id].qty += d;
+  if (carrito[id].qty <= 0) delete carrito[id];
+  refreshItem(id);
+  updateCarritoBar();
+}
+
+function refreshItem(id) {
+  const item = carta.find(i => i.id === id);
+  if (!item) return;
+  const el = document.getElementById('ir_' + id);
+  if (el) el.outerHTML = renderItemRow(item);
+}
+
+function scrollCat(catId, btn) {
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (catId === 'all') { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const el = document.querySelector(`[data-cat="${catId}"]`);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function updateCarritoBar() {
+  const count = Object.values(carrito).reduce((s, v) => s + v.qty, 0);
+  const total = Object.values(carrito).reduce((s, v) => s + v.item.price * v.qty, 0);
+  document.getElementById('carritoCount').textContent    = count;
+  document.getElementById('carritoBarTotal').textContent = total.toFixed(2) + ' €';
+  document.getElementById('carritoBar').classList.toggle('visible', count > 0);
+}
+
+function openCarrito() {
+  renderCarritoItems();
+  document.getElementById('carritoModal').classList.add('open');
+}
+function closeCarrito() { document.getElementById('carritoModal').classList.remove('open'); }
+
+function renderCarritoItems() {
+  const items = Object.entries(carrito);
+  const total = items.reduce((s, [, v]) => s + v.item.price * v.qty, 0);
+  document.getElementById('carritoItems').innerHTML = items.map(([id, { item, qty, nota }]) => `
+    <div class="carrito-item">
+      <span class="ci-emoji">${item.emoji}</span>
+      <span class="ci-name">${item.name}</span>
+      <div class="ci-qty">
+        <button class="qty-minus" onclick="changeItemCarrito('${id}',-1)">−</button>
+        <span class="qty-num">${qty}</span>
+        <button class="qty-plus" onclick="changeItemCarrito('${id}',1)">+</button>
+      </div>
+      <span class="ci-price">${(item.price * qty).toFixed(2)} €</span>
+    </div>
+    <textarea class="carrito-nota" placeholder="Nota para este plato…" onchange="setNota('${id}',this.value)">${nota}</textarea>
+  `).join('');
+  document.getElementById('carritoTotal').textContent = total.toFixed(2) + ' €';
+}
+
+function changeItemCarrito(id, d) {
+  if (!carrito[id]) return;
+  carrito[id].qty += d;
+  if (carrito[id].qty <= 0) delete carrito[id];
+  updateCarritoBar();
+  refreshItem(id);
+  if (!Object.keys(carrito).length) { closeCarrito(); return; }
+  renderCarritoItems();
+}
+
+function setNota(id, v) { if (carrito[id]) carrito[id].nota = v; }
+
+// ─── ENVIAR PEDIDO A SUPABASE ───
+async function enviarPedido() {
+  if (!Object.keys(carrito).length) return;
+
+  if (!mesaId) {
+    alert('Mesa no encontrada en el sistema. Pide al personal que te atienda.');
+    return;
+  }
+
+  const btnEnviar = document.querySelector('.send-btn');
+  if (btnEnviar) { btnEnviar.disabled = true; btnEnviar.textContent = 'Enviando…'; }
+
+  try {
+    const notaGeneral = document.getElementById('notaGeneral').value.trim();
+
+    // Construir array de items en el formato de Supabase
+    const nuevosItems = Object.values(carrito).map(({ item, qty, nota }) => ({
+      id:    item.id,
+      name:  item.name,
+      emoji: item.emoji,
+      price: Number(item.price),
+      iva:   item.iva,
+      qty,
+      nota:  nota || ''
+    }));
+
+    if (pedidoExistenteId) {
+      // Hay pedido abierto → MERGE de items
+      const pedidos = await sbSel('pos_pedidos', `id=eq.${pedidoExistenteId}`);
+      const existingItems = pedidos[0]?.items || [];
+
+      // Mergear: si el mismo producto ya existe sumar qty, si no añadir
+      const mergedMap = {};
+      existingItems.forEach(i => { mergedMap[i.id] = { ...i }; });
+      nuevosItems.forEach(i => {
+        if (mergedMap[i.id]) mergedMap[i.id].qty += i.qty;
+        else mergedMap[i.id] = { ...i };
+      });
+      const mergedItems = Object.values(mergedMap);
+
+      await sbUpd('pos_pedidos', { id: pedidoExistenteId }, {
+        items:   mergedItems,
+        estado:  'en-cocina',
+        nota:    notaGeneral || pedidos[0]?.nota || '',
+      });
+    } else {
+      // Pedido nuevo
+      const row = {
+        id:       'qr' + Date.now(),
+        mesa_id:  mesaId,
+        mesa_num: parseInt(mesaNum),
+        items:    nuevosItems,
+        estado:   'en-cocina',
+        nota:     notaGeneral,
+      };
+      const res = await sbIns('pos_pedidos', row);
+      pedidoExistenteId = res[0]?.id || row.id;
+    }
+
+    // Número de pedido para la pantalla de éxito
+    const numStr = '#' + String(Date.now()).slice(-4).padStart(4, '0');
+    closeCarrito();
+    document.getElementById('successNum').textContent = numStr;
+    document.getElementById('successScreen').classList.add('show');
+
+  } catch(e) {
+    alert('Error al enviar el pedido: ' + e.message + '\nInténtalo de nuevo.');
+  } finally {
+    if (btnEnviar) { btnEnviar.disabled = false; btnEnviar.textContent = '✓ Enviar pedido a cocina'; }
+  }
+}
+
+// ─── RESET (añadir más productos) ───
+function resetOrden() {
+  document.getElementById('successScreen').classList.remove('show');
+  carrito = {};
+  updateCarritoBar();
+  renderCarta();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ─── ARRANCAR ───
+init();
+
+// ─── PANTALLA MESA CERRADA ───
+function showMesaCerrada() {
+  document.getElementById('header').style.display = 'none';
+  document.getElementById('carta').innerHTML = '';
+  document.getElementById('carritoBar').classList.remove('visible');
+  document.body.style.background = 'var(--bg, #fafaf8)';
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;font-family:var(--font,system-ui)';
+  wrap.innerHTML = `
+    <div style="font-size:64px;margin-bottom:20px">🔒</div>
+    <div style="font-size:20px;font-weight:700;margin-bottom:10px;color:#1a1a18">Mesa ${mesaNum || '?'} no disponible</div>
+    <div style="font-size:14px;color:#6b6b65;line-height:1.6;margin-bottom:28px;max-width:280px">
+      El mesero aún no ha abierto esta mesa.<br>Por favor, pide al personal que te atienda.
+    </div>
+    <button onclick="location.reload()" style="padding:13px 28px;background:#d4770a;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:12px">
+      🔄 Reintentar
+    </button>
+    <button onclick="showInputMesa()" style="padding:10px 24px;background:transparent;color:#6b6b65;border:1px solid #e8e6e0;border-radius:10px;font-size:13px;cursor:pointer">
+      Ingresar otro número de mesa
+    </button>`;
+  document.body.appendChild(wrap);
+}
+
+// ─── PANTALLA INGRESO MANUAL DE MESA ───
+function showInputMesa() {
+  document.getElementById('header').style.display = 'none';
+  document.getElementById('carta').innerHTML = '';
+  document.getElementById('carritoBar').classList.remove('visible');
+  const existing = document.getElementById('mesaInputScreen');
+  if (existing) existing.remove();
+
+  const wrap = document.createElement('div');
+  wrap.id = 'mesaInputScreen';
+  wrap.style.cssText = 'position:fixed;inset:0;background:var(--bg,#fafaf8);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;gap:20px;font-family:var(--font,system-ui);';
+
+  wrap.innerHTML =
+    '<div style="font-size:56px">&#x1F37D;&#xFE0F;</div>'
+    + '<div style="font-size:22px;font-weight:700;color:var(--text,#1a1a18);text-align:center" id="inputRestNombre">Restaurante</div>'
+    + '<div style="font-size:14px;color:var(--text2,#6b6b65);text-align:center">Introduce el n\u00famero de tu mesa</div>'
+    + '<div style="display:flex;gap:10px;align-items:center;width:100%;max-width:280px">'
+    +   '<input type="number" id="mesaNumInput" min="1" max="999" placeholder="Ej: 5"'
+    +   ' style="flex:1;font-size:28px;font-weight:700;text-align:center;padding:14px;border:2px solid var(--border,#e8e6e0);border-radius:12px;background:var(--surface,#fff);color:var(--text,#1a1a18);outline:none;-webkit-appearance:none"'
+    +   ' oninput="this.style.borderColor=\'var(--accent,#d4770a)\'"'
+    +   ' onkeydown="if(event.key===\'Enter\')confirmarNumMesa()">'
+    + '</div>'
+    + '<button onclick="confirmarNumMesa()" style="width:100%;max-width:280px;padding:16px;background:var(--accent,#d4770a);color:#fff;border:none;border-radius:14px;font-size:16px;font-weight:700;cursor:pointer;font-family:inherit">'
+    +   'Ver carta &#x2192;'
+    + '</button>'
+    + '<div id="mesaInputError" style="color:var(--danger,#dc2626);font-size:13px;min-height:20px;text-align:center"></div>'
+    + '<div style="font-size:11px;color:var(--text3,#a8a89e);text-align:center">O escanea el QR de tu mesa</div>';
+
+  document.body.appendChild(wrap);
+
+  // Pre-fill nombre restaurante if cfg loaded
+  setTimeout(function() {
+    try {
+      sbSel('pos_config','id=eq.1').then(function(arr) {
+        if (arr[0] && arr[0].nombre) {
+          var el = document.getElementById('inputRestNombre');
+          if (el) el.textContent = arr[0].nombre;
+        }
+      });
+    } catch(_) {}
+    var inp = document.getElementById('mesaNumInput');
+    if (inp) inp.focus();
+  }, 100);
+}
+
+async function confirmarNumMesa() {
+  var inp = document.getElementById('mesaNumInput');
+  var errEl = document.getElementById('mesaInputError');
+  if (!inp) return;
+  var num = parseInt(inp.value);
+  if (!num || num < 1) {
+    if (errEl) errEl.textContent = 'Introduce un n\u00famero de mesa v\u00e1lido';
+    inp.style.borderColor = '#dc2626';
+    return;
+  }
+  if (errEl) errEl.textContent = '';
+  mesaNum = String(num);
+  await loadMesa(num);
+}
+
+
+function showMesaCerrada() {
+  document.getElementById('header').style.display = 'none';
+  document.getElementById('carta').innerHTML = '';
+  document.getElementById('carritoBar').classList.remove('visible');
+  document.body.style.background = 'var(--bg, #fafaf8)';
+  const wrap = document.createElement('div');
+  wrap.style.cssText = 'min-height:100dvh;display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;font-family:var(--font,system-ui)';
+  wrap.innerHTML = `
+    <div style="font-size:64px;margin-bottom:20px">🔒</div>
+    <div style="font-size:20px;font-weight:700;margin-bottom:10px;color:#1a1a18">Mesa ${mesaNum || '?'} no disponible</div>
+    <div style="font-size:14px;color:#6b6b65;line-height:1.6;margin-bottom:28px;max-width:280px">
+      El mesero aún no ha abierto esta mesa.<br>Por favor, pide al personal que te atienda.
+    </div>
+    <button onclick="location.reload()" style="padding:13px 28px;background:#d4770a;color:#fff;border:none;border-radius:12px;font-size:15px;font-weight:700;cursor:pointer;margin-bottom:12px">
+      🔄 Reintentar
+    </button>
+    <button onclick="showInputMesa()" style="padding:10px 24px;background:transparent;color:#6b6b65;border:1px solid #e8e6e0;border-radius:10px;font-size:13px;cursor:pointer">
+      Ingresar otro número de mesa
+    </button>`;
+  document.body.appendChild(wrap);
+}
+
+// ─── PANTALLA INGRESO MANUAL DE MESA ───
+function showInputMesa() {
+  document.getElementById('header').style.display = 'none';
+  document.getElementById('carta').innerHTML = '';
+  document.getElementById('carritoBar').classList.remove('visible');
+  // Remove any existing overlay
+  const existing = document.getElementById('mesaInputScreen');
+  if (existing) existing.remove();
+  const wrap = document.createElement('div');
+  wrap.id = 'mesaInputScreen';
+  wrap.style.cssText = 'position:fixed;inset:0;background:var(--bg,#fafaf8);display:flex;flex-direction:column;align-items:center;justify-content:center;padding:32px 24px;text-align:center;font-family:var(--font,system-ui);z-index:999';
+  wrap.innerHTML = `
+    <div style="font-size:52px;margin-bottom:16px">🍽️</div>
+    <div style="font-size:22px;font-weight:700;margin-bottom:6px;color:#1a1a18" id="qrRestNombre">Restaurante</div>
+    <div style="font-size:14px;color:#6b6b65;margin-bottom:28px">Introduce el número de tu mesa</div>
+    <div style="display:flex;gap:10px;align-items:center;margin-bottom:20px">
+      <input type="number" id="mesaInputField" min="1" max="99" placeholder="Ej: 5"
+        style="width:120px;height:56px;border:2px solid #e8e6e0;border-radius:12px;font-size:28px;font-weight:700;text-align:center;color:#1a1a18;background:#fff;outline:none"
+        onfocus="this.style.borderColor='#d4770a'"
+        onblur="this.style.borderColor='#e8e6e0'"
+        onkeydown="if(event.key==='Enter') irAMesa()">
+    </div>
+    <button onclick="irAMesa()" style="width:200px;padding:14px;background:#d4770a;color:#fff;border:none;border-radius:12px;font-size:16px;font-weight:700;cursor:pointer">
+      Ir a mi mesa →
+    </button>
+    <div style="font-size:12px;color:#a8a89e;margin-top:20px">O escanea el QR de tu mesa</div>`;
+  document.body.appendChild(wrap);
+  // Set restaurant name if already loaded
+  if (cfg && cfg.nombre) document.getElementById('qrRestNombre').textContent = cfg.nombre;
+  setTimeout(function() {
+    const inp = document.getElementById('mesaInputField');
+    if (inp) inp.focus();
+  }, 100);
+}
+
+function irAMesa() {
+  const inp = document.getElementById('mesaInputField');
+  const num = inp ? inp.value.trim() : '';
+  if (!num || isNaN(num) || Number(num) < 1) {
+    inp.style.borderColor = '#ef4444';
+    return;
+  }
+  // Reload with mesa param
+  window.location.href = 'pos_qr.html?mesa=' + num;
+}
 </script>
 </body>
 </html>

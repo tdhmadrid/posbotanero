@@ -105,6 +105,7 @@ input,select,textarea{font-family:var(--fb);}
 .mc{background:var(--s1);border:2px solid var(--bdr);border-radius:var(--r2);padding:12px 8px;cursor:pointer;transition:.18s;text-align:center;position:relative;aspect-ratio:1.05;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;}
 .mc:active{transform:scale(.96);}
 .mc.libre{border-color:var(--bdr);}
+.mc.abierta{border-color:var(--teal);background:rgba(16,185,129,.06);}
 .mc.ocupada{border-color:var(--gold);background:var(--gold-d);}
 .mc.cocina{border-color:var(--blue);background:var(--blue-d);}
 .mc.listo{border-color:var(--teal);background:var(--teal-d);animation:listo-pulse 1.2s ease infinite;}
@@ -406,6 +407,43 @@ input,select,textarea{font-family:var(--fb);}
   </div>
 </div>
 
+
+<!-- MODAL ABRIR MESA -->
+<div class="movl" id="mAbrirMesa">
+  <div class="msheet" style="max-width:340px">
+    <div class="msheet-h">
+      <h3 id="mAbrirTitle">Abrir mesa</h3>
+      <button class="close-btn" onclick="closeM('mAbrirMesa')">&#x2715;</button>
+    </div>
+    <div class="msheet-b">
+      <div style="text-align:center;font-size:40px;margin-bottom:8px" id="mAbrirIcon">&#x1FA91;</div>
+      <div style="text-align:center;font-size:22px;font-weight:700;margin-bottom:4px" id="mAbrirMesaNum">Mesa &mdash;</div>
+      <div style="text-align:center;font-size:12px;color:var(--t3);margin-bottom:20px" id="mAbrirZona">&mdash;</div>
+      <div class="fg">
+        <label>N&uacute;mero de comensales</label>
+        <div style="display:flex;align-items:center;gap:12px;margin-top:6px">
+          <button onclick="cambiarComensales(-1)" style="width:40px;height:40px;border-radius:50%;border:1px solid var(--bdr);background:var(--s3);color:var(--t1);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center">-</button>
+          <div style="flex:1;text-align:center;font-size:28px;font-weight:700;font-family:var(--fm)" id="comensalesNum">2</div>
+          <button onclick="cambiarComensales(1)" style="width:40px;height:40px;border-radius:50%;border:1px solid var(--bdr);background:var(--s3);color:var(--t1);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center">+</button>
+        </div>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px">
+        <button onclick="setComensales(1)" style="padding:8px;background:var(--s3);border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;color:var(--t2)">1</button>
+        <button onclick="setComensales(2)" style="padding:8px;background:var(--s3);border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;color:var(--t2)">2</button>
+        <button onclick="setComensales(3)" style="padding:8px;background:var(--s3);border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;color:var(--t2)">3</button>
+        <button onclick="setComensales(4)" style="padding:8px;background:var(--s3);border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;color:var(--t2)">4</button>
+        <button onclick="setComensales(5)" style="padding:8px;background:var(--s3);border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;color:var(--t2)">5</button>
+        <button onclick="setComensales(6)" style="padding:8px;background:var(--s3);border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;color:var(--t2)">6</button>
+        <button onclick="setComensales(8)" style="padding:8px;background:var(--s3);border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;color:var(--t2)">8</button>
+        <button onclick="setComensales(10)" style="padding:8px;background:var(--s3);border:1px solid var(--bdr);border-radius:7px;font-size:13px;font-weight:600;cursor:pointer;color:var(--t2)">10</button>
+      </div>
+    </div>
+    <div class="mactions">
+      <button class="btn btn-ghost" onclick="closeM('mAbrirMesa')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarAbrirMesa()" style="flex:1;justify-content:center;padding:13px">&#x1F513; Abrir mesa</button>
+    </div>
+  </div>
+</div>
 <div id="ticketPrint"></div>
 <div id="ta"></div>
 <div id="loader"><span>Cargando&hellip;</span></div>
@@ -941,7 +979,184 @@ function printTicket(f, cfg) {
   window.print();
 }
 
-// ─── BOOT ───
+// ═══════════════════════════════════════════════
+// APERTURA DE MESA — usa pos_mesas.sesion_activa
+// ═══════════════════════════════════════════════
+
+var mesaParaAbrir = null;
+var comensalesCount = 2;
+
+// ── Render renderMesas: mostrar estado de sesion_activa ──
+// Override del renderMesas base para añadir apertura
+var _baseRenderMesas = renderMesas;
+function renderMesas() {
+  var listosCount = C.pedidos.filter(function(p) { return p.estado === 'listo'; }).length;
+  var banner = document.getElementById('notifBanner');
+  if (banner) { banner.classList.toggle('visible', listosCount > 0); }
+  var countEl = document.getElementById('notifCount');
+  if (countEl) countEl.textContent = listosCount;
+
+  var html = '';
+  C.zonas.forEach(function(z) {
+    var zMesas = C.mesas.filter(function(m) { return m.zona_id === z.id; });
+    if (!zMesas.length) return;
+    html += '<div class="zona-label">' + z.icon + ' ' + z.nombre + '</div><div class="mesas-grid">';
+    zMesas.forEach(function(m) {
+      var pedido = C.pedidos.find(function(p) { return p.mesa_id === m.id; });
+      var sesActiva = m.sesion_activa;
+
+      // Estado visual
+      var st = 'libre';
+      if (!sesActiva) { st = 'libre'; }
+      else if (pedido && pedido.estado === 'listo')     { st = 'listo'; }
+      else if (pedido && pedido.estado === 'en-cocina') { st = 'cocina'; }
+      else if (pedido) { st = 'ocupada'; }
+      else { st = 'abierta'; } // sesión abierta pero sin pedido aún
+
+      var tot = null;
+      if (pedido && pedido.items && pedido.items.length) {
+        tot = pedido.items.reduce(function(s,i) { return s + (i.price * i.qty); }, 0).toFixed(2) + ' \u20ac';
+      }
+      var tmr = '';
+      if (m.abierta_at) {
+        var mins = Math.floor((Date.now() - new Date(m.abierta_at).getTime()) / 60000);
+        tmr = mins < 60 ? mins + 'm' : Math.floor(mins/60) + 'h' + (mins%60) + 'm';
+      }
+
+      var listoBadge = st === 'listo' ? '<span class="mc-listo-badge">\uD83D\uDD14 LISTO</span>' : '';
+      var comBadge = (sesActiva && m.comensales) ? '<div class="mc-timer">\uD83D\uDC64 ' + m.comensales + '</div>' : '';
+
+      html += '<div class="mc ' + st + '" onclick="clickMesaWaiter(\'' + m.id + '\')">'
+        + listoBadge
+        + '<div class="mc-sdot"></div>'
+        + '<div class="mc-icon">' + (m.icon || '\uD83E\uDEAD') + '</div>'
+        + '<div class="mc-num">Mesa ' + m.num + '</div>'
+        + '<div class="mc-cap">' + m.cap + ' pers.</div>'
+        + (tot ? '<div class="mc-total">' + tot + '</div>' : '')
+        + (tmr ? '<div class="mc-timer">' + tmr + '</div>' : '')
+        + comBadge
+        + '</div>';
+    });
+    html += '</div>';
+  });
+  document.getElementById('mesasContainer').innerHTML = html
+    || '<div style="padding:40px;text-align:center;color:var(--t3)">No hay mesas configuradas</div>';
+}
+
+// ── refreshMesas: incluir sesion_activa en la carga ──
+async function refreshMesas() {
+  try {
+    // Recargar mesas con campos de sesión
+    var results = await Promise.all([
+      SB.sel('pos_pedidos', 'estado=in.(abierto,en-cocina,listo)&order=created_at.asc'),
+      SB.sel('pos_mesas',   'activa=eq.true&order=num.asc'),
+    ]);
+    C.pedidos = results[0];
+    C.mesas   = results[1];
+    renderMesas();
+  } catch(e) { toast('Error cargando mesas: ' + e.message, 'err'); }
+}
+
+// ── Click en mesa ──
+async function clickMesaWaiter(mid) {
+  var mesa = C.mesas.find(function(m) { return m.id === mid; });
+  if (!mesa) return;
+
+  if (!mesa.sesion_activa) {
+    // Mesa cerrada → mostrar modal de apertura
+    mesaParaAbrir = mesa;
+    comensalesCount = mesa.cap || 2;
+    document.getElementById('mAbrirTitle').textContent = 'Abrir Mesa ' + mesa.num;
+    document.getElementById('mAbrirMesaNum').textContent = 'Mesa ' + mesa.num;
+    document.getElementById('mAbrirIcon').textContent = mesa.icon || '\uD83E\uDEAD';
+    var zona = C.zonas.find(function(z) { return z.id === mesa.zona_id; });
+    document.getElementById('mAbrirZona').textContent = zona ? zona.icon + ' ' + zona.nombre : '';
+    document.getElementById('comensalesNum').textContent = comensalesCount;
+    openM('mAbrirMesa');
+    return;
+  }
+
+  // Mesa abierta → ir a comanda
+  await clickMesa(mid);
+}
+
+// ── Cambiar comensales en el modal ──
+function cambiarComensales(d) {
+  comensalesCount = Math.max(1, Math.min(30, comensalesCount + d));
+  document.getElementById('comensalesNum').textContent = comensalesCount;
+}
+function setComensales(n) {
+  comensalesCount = n;
+  document.getElementById('comensalesNum').textContent = n;
+}
+
+// ── Confirmar apertura de mesa ──
+async function confirmarAbrirMesa() {
+  if (!mesaParaAbrir) return;
+  load(true);
+  try {
+    await SB.upd('pos_mesas', { id: mesaParaAbrir.id }, {
+      sesion_activa: true,
+      comensales:    comensalesCount,
+      abierta_por:   currentUser.id,
+      abierta_at:    new Date().toISOString(),
+    });
+    // Actualizar cache local
+    var idx = C.mesas.findIndex(function(m) { return m.id === mesaParaAbrir.id; });
+    if (idx >= 0) {
+      C.mesas[idx].sesion_activa = true;
+      C.mesas[idx].comensales    = comensalesCount;
+      C.mesas[idx].abierta_at    = new Date().toISOString();
+    }
+    closeM('mAbrirMesa');
+    renderMesas();
+    toast('\uD83D\uDD13 Mesa ' + mesaParaAbrir.num + ' abierta \u2014 ' + comensalesCount + ' comensales', 'ok');
+    // Ir directamente a la comanda
+    await clickMesa(mesaParaAbrir.id);
+  } catch(e) { toast('Error al abrir mesa: ' + e.message, 'err'); }
+  finally { load(false); }
+}
+
+// ── Cerrar sesión de mesa al cobrar ──
+// Se llama desde procesarCobro después del cobro exitoso
+async function cerrarSesionMesa(mesaId) {
+  try {
+    await SB.upd('pos_mesas', { id: mesaId }, {
+      sesion_activa: false,
+      comensales:    0,
+      abierta_por:   null,
+      abierta_at:    null,
+    });
+    var idx = C.mesas.findIndex(function(m) { return m.id === mesaId; });
+    if (idx >= 0) {
+      C.mesas[idx].sesion_activa = false;
+      C.mesas[idx].comensales    = 0;
+      C.mesas[idx].abierta_at    = null;
+    }
+  } catch(e) { console.error('Error cerrando sesión de mesa:', e); }
+}
+
+// ── Override procesarCobro para cerrar sesión de mesa ──
+var _origProcesarCobro = procesarCobro;
+async function procesarCobro() {
+  var mesaIdAntes = currentMesa ? currentMesa.id : null;
+  await _origProcesarCobro();
+  // Si el cobro cerró el pedido, cerrar también la sesión de mesa
+  if (mesaIdAntes && !currentPedidoId) {
+    await cerrarSesionMesa(mesaIdAntes);
+    await refreshMesas();
+  }
+}
+
+// ── Realtime: escuchar cambios en pos_mesas (otras mesas abiertos por otros meseros) ──
+var _origHandleRealtime = handleRealtimePedido;
+function handleRealtimePedido(record) {
+  _origHandleRealtime(record);
+}
+
+// También polling de mesas cada 20s (sesion_activa puede cambiar desde admin o TPV)
+setInterval(refreshMesas, 20000);
+
 initLogin();
 </script>
 </body>

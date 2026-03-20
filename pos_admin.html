@@ -176,6 +176,24 @@ select.fc option{background:var(--s2);}
 @keyframes tin{from{transform:translateX(110%);opacity:0;}to{transform:none;opacity:1;}}
 @keyframes tout{from{transform:none;opacity:1;}to{transform:translateX(110%);opacity:0;}}
 .toast.out{animation:tout .3s ease forwards;}
+
+/* QR PANEL */
+.qr-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(220px,1fr)); gap: 14px; }
+.qr-card { background: var(--s1); border: 1px solid var(--bdr); border-radius: var(--r2); padding: 20px; text-align: center; }
+.qr-card-zona { font-size: 10px; color: var(--t3); font-weight: 700; letter-spacing: 1px; text-transform: uppercase; margin-bottom: 6px; }
+.qr-card-num { font-size: 28px; font-weight: 700; margin-bottom: 4px; }
+.qr-code-box { width: 140px; height: 140px; background: #fff; border-radius: 10px; margin: 12px auto; display: flex; align-items: center; justify-content: center; border: 1px solid var(--bdr); overflow: hidden; }
+.qr-url { font-family: var(--fm); font-size: 10px; color: var(--t3); margin-bottom: 10px; word-break: break-all; }
+@media print {
+  .sidebar, .topbar, .btn, #toastArea, #loadingOverlay { display: none !important; }
+  .content { padding: 0 !important; }
+  .panel { display: block !important; }
+  .qr-print-page { page-break-after: always; display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; }
+  .qr-card-print { text-align: center; }
+  .qr-grid { display: none; }
+  .qr-print-all { display: block !important; }
+}
+.qr-print-all { display: none; }
 </style>
 </head>
 <body>
@@ -216,11 +234,13 @@ select.fc option{background:var(--s2);}
         <button class="ni on" id="ni-usuarios" onclick="navTo('usuarios',this)"><span class="ico">&#x1F465;</span>Usuarios</button>
         <button class="ni" id="ni-mesas" onclick="navTo('mesas',this)"><span class="ico">&#x1F5FA;</span>Mapa de mesas</button>
         <button class="ni" id="ni-carta" onclick="navTo('carta',this)"><span class="ico">&#x1F4CB;</span>Carta</button>
+        <button class="ni" id="ni-qrs" onclick="navTo('qrs',this)"><span class="ico">&#x1F4F2;</span>QRs de mesas</button>
         <div class="sb-sect">Abrir módulo</div>
         <a href="pos_core.html"   target="_blank" class="ni" style="text-decoration:none"><span class="ico">🖥️</span>TPV — Mostrador</a>
         <a href="pos_kds.html"    target="_blank" class="ni" style="text-decoration:none"><span class="ico">🍳</span>KDS — Cocina</a>
         <a href="pos_waiter.html" target="_blank" class="ni" style="text-decoration:none"><span class="ico">🛎️</span>Mesero — Sala</a>
         <a href="pos_qr.html?mesa=1" target="_blank" class="ni" style="text-decoration:none"><span class="ico">📱</span>QR — Mesa 1</a>
+        <button class="ni" id="ni-qrs" onclick="navTo('qrs',this)"><span class="ico">&#x1F4F1;</span>QR por mesa</button>
         <button class="ni" id="ni-config" onclick="navTo('config',this)"><span class="ico">&#x2699;</span>Configuración</button>
       </nav>
       <div class="sb-bottom">
@@ -283,6 +303,24 @@ select.fc option{background:var(--s2);}
             <button class="btn btn-primary" onclick="saveConfig()">&#x1F4BE; Guardar</button>
           </div>
           <div id="configLayout"></div>
+        </div>
+
+
+        <!-- QR POR MESA -->
+        <div class="panel" id="panel-qrs">
+          <div class="ph">
+            <div class="ph-left"><h2>QR por mesa</h2><div class="ph-desc">Imprime un QR para cada mesa. El cliente lo escanea para ver la carta y hacer pedidos.</div></div>
+            <button class="btn btn-primary btn-sm" onclick="imprimirTodosQR()">🖨️ Imprimir todos</button>
+          </div>
+          <div id="qrPanelContent"></div>
+        </div>
+        <!-- QRS -->
+        <div class="panel" id="panel-qrs">
+          <div class="ph">
+            <div class="ph-left"><h2>QRs de mesas</h2><div class="ph-desc">Genera e imprime los QRs para cada mesa</div></div>
+            <button class="btn btn-primary" onclick="printAllQRs()">&#x1F5A8; Imprimir todos</button>
+          </div>
+          <div id="qrsLayout"></div>
         </div>
 
       </main>
@@ -581,7 +619,7 @@ function showLoading(on) {
 // ─────────────────────────────────────────
 // NAV
 // ─────────────────────────────────────────
-const TITLES = { usuarios:'Usuarios', mesas:'Mapa de mesas', carta:'Carta', config:'Configuración' };
+const TITLES = { usuarios:'Usuarios', mesas:'Mapa de mesas', carta:'Carta', config:'Configuración', qrs:'QRs de mesas' };
 function navTo(name, btn) {
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.ni').forEach(b=>b.classList.remove('on'));
@@ -591,6 +629,7 @@ function navTo(name, btn) {
   if (name==='mesas')  renderMesas();
   if (name==='carta')  renderCarta();
   if (name==='config') loadConfig();
+  if (name==='qrs')    renderQRs();
 }
 
 function tick() { document.getElementById('clock').textContent = new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}); }
@@ -1219,6 +1258,228 @@ async function saveConfig() {
 // ─────────────────────────────────────────
 // BOOT
 // ─────────────────────────────────────────
+
+// ═══════════════════════════════════════════════
+// PANEL QR POR MESA
+// ═══════════════════════════════════════════════
+function renderQRPanel() {
+  const mesas = cache.mesas.slice().sort((a,b)=>a.num-b.num);
+  const zonas = cache.zonas;
+  const cfg   = cache.config || {};
+  const base  = window.location.href.replace(/\/[^/]*$/, '/') + 'pos_qr.html';
+  if (!mesas.length) {
+    document.getElementById('qrPanelContent').innerHTML =
+      '<div style="text-align:center;padding:60px;color:var(--t3)">No hay mesas. Créalas en Mapa de mesas.</div>';
+    return;
+  }
+  let html = '<div class="qr-grid">';
+  mesas.forEach(m => {
+    const zona = zonas.find(z=>z.id===m.zona_id);
+    const url  = base + '?mesa=' + m.num;
+    html += '<div class="qr-card">'
+      + '<div class="qr-card-zona">' + (zona?zona.icon+' '+zona.nombre:'') + '</div>'
+      + '<div class="qr-card-num">' + (m.icon||'\uD83E\uDEAD') + ' Mesa ' + m.num + '</div>'
+      + '<div class="qr-code-box" id="qrbox_' + m.id + '"></div>'
+      + '<div class="qr-url">' + url + '</div>'
+      + '<div style="display:flex;gap:6px;justify-content:center;margin-top:6px">'
+      + '<button class="btn btn-ghost btn-xs" onclick="imprimirQR(\'' + m.id + '\',' + m.num + ')">&#x1F5A8; Imprimir</button>'
+      + '<button class="btn btn-ghost btn-xs" onclick="copyUrl(\'' + url + '\')">&#x1F4CB; URL</button>'
+      + '</div></div>';
+  });
+  html += '</div>';
+  document.getElementById('qrPanelContent').innerHTML = html;
+  loadQRLib(() => {
+    mesas.forEach(m => {
+      const url = base + '?mesa=' + m.num;
+      const box = document.getElementById('qrbox_' + m.id);
+      if (!box) return;
+      try { new QRCode(box, {text:url,width:128,height:128,colorDark:'#000',colorLight:'#fff',correctLevel:QRCode.CorrectLevel.M}); }
+      catch(e) { box.innerHTML = '<div style="font-size:10px;color:var(--t3);padding:8px">QR no disponible</div>'; }
+    });
+  });
+}
+
+function loadQRLib(cb) {
+  if (window.QRCode) { cb(); return; }
+  const s = document.createElement('script');
+  s.src = 'https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js';
+  s.onload = cb;
+  s.onerror = () => toast('Error cargando librería QR','err');
+  document.head.appendChild(s);
+}
+
+function copyUrl(url) {
+  navigator.clipboard.writeText(url)
+    .then(() => toast('URL copiada','ok'))
+    .catch(() => toast('URL: ' + url, 'inf'));
+}
+
+function imprimirQR(mesaId, mesaNum) {
+  const mesa = cache.mesas.find(m=>m.id===mesaId);
+  const zona = mesa ? cache.zonas.find(z=>z.id===mesa.zona_id) : null;
+  const cfg  = cache.config || {};
+  const url  = window.location.href.replace(/\/[^/]*$/, '/') + 'pos_qr.html?mesa=' + mesaNum;
+  const win  = window.open('','_blank','width=420,height=560');
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>QR Mesa ' + mesaNum + '</title>'
+    + '<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></scr'+'ipt>'
+    + '<style>body{font-family:sans-serif;display:flex;align-items:center;justify-content:center;min-height:100vh;margin:0;background:#fff}'
+    + '.card{text-align:center;padding:36px;border:2px solid #eee;border-radius:16px;max-width:300px}'
+    + '.rest{font-size:13px;color:#888;margin-bottom:4px}.num{font-size:38px;font-weight:700;margin-bottom:6px}'
+    + '.zona{font-size:12px;color:#aaa;margin-bottom:18px}.qrb{width:180px;height:180px;margin:0 auto 14px}'
+    + '.url{font-size:9px;color:#ccc;word-break:break-all;margin-top:6px;max-width:240px}'
+    + '.inst{font-size:12px;color:#666;margin-top:12px;line-height:1.5}</style></head><body>'
+    + '<div class="card"><div class="rest">' + (cfg.nombre||'Restaurante') + '</div>'
+    + '<div class="num">' + (mesa?mesa.icon:'\uD83E\uDEAD') + ' Mesa ' + mesaNum + '</div>'
+    + '<div class="zona">' + (zona?zona.icon+' '+zona.nombre:'') + ' &middot; ' + (mesa?mesa.cap:'') + ' personas</div>'
+    + '<div class="qrb" id="qr"></div>'
+    + '<div class="url">' + url + '</div>'
+    + '<div class="inst">Escanea para ver la carta<br>o ingresa el n\u00famero de mesa</div>'
+    + '</div><scr'+'ipt>window.onload=function(){'
+    + 'new QRCode(document.getElementById("qr"),{text:"' + url + '",width:180,height:180,'
+    + 'colorDark:"#000",colorLight:"#fff",correctLevel:QRCode.CorrectLevel.M});'
+    + 'setTimeout(function(){window.print();},800);}'
+    + '</scr'+'ipt></body></html>');
+  win.document.close();
+}
+
+function imprimirTodosQR() {
+  const mesas = cache.mesas.slice().sort((a,b)=>a.num-b.num);
+  if (!mesas.length) { toast('No hay mesas','err'); return; }
+  const cfg  = cache.config || {};
+  const base = window.location.href.replace(/\/[^/]*$/, '/') + 'pos_qr.html';
+  const pages = mesas.map(m => {
+    const zona = cache.zonas.find(z=>z.id===m.zona_id);
+    const url  = base + '?mesa=' + m.num;
+    return '<div class="page"><div class="rest">' + (cfg.nombre||'Restaurante') + '</div>'
+      + '<div class="num">' + (m.icon||'\uD83E\uDEAD') + ' Mesa ' + m.num + '</div>'
+      + '<div class="zona">' + (zona?zona.icon+' '+zona.nombre:'') + ' &middot; ' + m.cap + ' personas</div>'
+      + '<div class="qrb" id="qr_' + m.id + '"></div>'
+      + '<div class="url">' + url + '</div>'
+      + '<div class="inst">Escanea el QR o ingresa el n\u00famero de mesa en tu navegador</div></div>';
+  }).join('');
+  const initQRs = mesas.map(m =>
+    'new QRCode(document.getElementById("qr_' + m.id + '"),{text:"' + base + '?mesa=' + m.num + '",width:200,height:200,colorDark:"#000",colorLight:"#fff",correctLevel:QRCode.CorrectLevel.M});'
+  ).join('');
+  const win = window.open('','_blank');
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>QR Mesas</title>'
+    + '<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></scr'+'ipt>'
+    + '<style>body{font-family:sans-serif;margin:0;background:#fff}'
+    + '.page{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:32px;page-break-after:always}'
+    + '.rest{font-size:13px;color:#888;margin-bottom:4px}.num{font-size:42px;font-weight:700;margin-bottom:6px}'
+    + '.zona{font-size:13px;color:#aaa;margin-bottom:20px}.qrb{width:200px;height:200px;margin:0 auto 16px}'
+    + '.url{font-size:9px;color:#ccc;word-break:break-all;max-width:240px}'
+    + '.inst{font-size:12px;color:#666;margin-top:14px;line-height:1.5}</style></head><body>'
+    + pages
+    + '<scr'+'ipt>window.onload=function(){' + initQRs + 'setTimeout(function(){window.print();},1200);}</scr'+'ipt>'
+    + '</body></html>');
+  win.document.close();
+}
+
+// ═══════════════════════════════════════════════
+// QRS DE MESAS
+// ═══════════════════════════════════════════════
+function getBaseUrl() {
+  return window.location.href.replace(/pos_admin\.html.*$/, '').replace(/\/$/, '');
+}
+
+function renderQRs() {
+  const mesas = cache.mesas;
+  const zonas = cache.zonas;
+  const cfg   = cache.config;
+  const base  = getBaseUrl();
+
+  if (!mesas.length) {
+    document.getElementById('qrsLayout').innerHTML =
+      '<div style="text-align:center;padding:40px;color:var(--t3)">No hay mesas. Crea mesas en el panel Mapa de mesas primero.</div>';
+    return;
+  }
+
+  let html = '<div style="margin-bottom:14px;background:var(--blue-d);border:1px solid rgba(96,165,250,.15);border-radius:var(--r);padding:12px 14px;font-size:12px;color:var(--t2);line-height:1.6">'
+    + '<strong style="color:var(--t1)">Instrucciones:</strong> Imprime cada QR y p\u00e9galo en la mesa. '
+    + 'El cliente solo ver\u00e1 la carta cuando el mesero haya abierto la mesa. '
+    + 'Los QRs son fijos \u2014 no cambian aunque se cierre la sesi\u00f3n.</div>';
+
+  html += '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(200px,1fr));gap:14px">';
+
+  mesas.forEach(m => {
+    const zona  = zonas.find(z => z.id === m.zona_id);
+    const url   = base + '/pos_qr.html?mesa=' + m.num;
+    const qrSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=180x180&ecc=M&data=' + encodeURIComponent(url);
+
+    html += '<div style="background:var(--s1);border:1px solid var(--bdr);border-radius:var(--r2);overflow:hidden">'
+      + '<div style="padding:10px 13px;border-bottom:1px solid var(--bdr);display:flex;align-items:center;gap:8px">'
+      + '<span style="font-size:18px">' + (m.icon||'\uD83E\uDEAD') + '</span>'
+      + '<div style="flex:1"><div style="font-size:13px;font-weight:600">Mesa ' + m.num + '</div>'
+      + '<div style="font-size:10px;color:var(--t3)">' + (zona?zona.icon+' '+zona.nombre:'') + ' \u00b7 ' + m.cap + ' pers.</div></div>'
+      + '<button class="btn btn-ghost btn-xs" onclick="printOneQR(' + m.num + ')" title="Imprimir">\uD83D\uDDA8</button>'
+      + '</div>'
+      + '<div style="padding:14px;text-align:center">'
+      + '<img src="' + qrSrc + '" alt="QR Mesa ' + m.num + '" width="160" height="160" style="border-radius:8px;border:1px solid var(--bdr)">'
+      + '<div style="font-family:var(--fm);font-size:9px;color:var(--t3);margin-top:6px;word-break:break-all;line-height:1.4">' + url + '</div>'
+      + '</div></div>';
+  });
+
+  html += '</div>';
+  document.getElementById('qrsLayout').innerHTML = html;
+}
+
+function printOneQR(mesaNum) {
+  const base  = getBaseUrl();
+  const cfg   = cache.config;
+  const url   = base + '/pos_qr.html?mesa=' + mesaNum;
+  const qrSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=280x280&ecc=M&data=' + encodeURIComponent(url);
+  const win   = window.open('','_blank','width=420,height=620');
+  win.document.write(
+    '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>QR Mesa ' + mesaNum + '</title>'
+    + '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:sans-serif;text-align:center;padding:40px 32px;background:#fff;color:#000}'
+    + 'h1{font-size:18px;font-weight:600;margin-bottom:4px}img{width:240px;height:240px;margin:20px auto;display:block;border-radius:8px}'
+    + '.mesa{font-size:32px;font-weight:700;margin:8px 0}.url{font-size:10px;color:#aaa;word-break:break-all;margin-top:6px}'
+    + 'p{font-size:13px;color:#666;margin-top:6px}.btn{display:inline-block;margin-top:24px;padding:10px 24px;background:#000;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer}'
+    + '@media print{.btn{display:none}}</style></head><body>'
+    + '<h1>' + (cfg.nombre||'Restaurante') + '</h1>'
+    + '<p>Escanea para ver la carta y hacer tu pedido</p>'
+    + '<img src="' + qrSrc + '" alt="QR">'
+    + '<div class="mesa">Mesa ' + mesaNum + '</div>'
+    + '<div class="url">' + url + '</div>'
+    + '<button class="btn" onclick="window.print()">\uD83D\uDDA8 Imprimir</button>'
+    + '</body></html>'
+  );
+  win.document.close();
+}
+
+function printAllQRs() {
+  const mesas = cache.mesas;
+  if (!mesas.length) { toast('No hay mesas configuradas', 'err'); return; }
+  const base = getBaseUrl();
+  const cfg  = cache.config;
+  let rows   = '';
+
+  mesas.forEach(m => {
+    const url   = base + '/pos_qr.html?mesa=' + m.num;
+    const qrSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=220x220&ecc=M&data=' + encodeURIComponent(url);
+    rows += '<div style="text-align:center;border:1px solid #ddd;border-radius:8px;padding:16px;page-break-inside:avoid">'
+      + '<div style="font-size:15px;font-weight:600">' + (cfg.nombre||'Restaurante') + '</div>'
+      + '<div style="font-size:12px;color:#666;margin-bottom:10px">Escanea para pedir</div>'
+      + '<img src="' + qrSrc + '" width="190" height="190" style="border-radius:6px;border:1px solid #eee">'
+      + '<div style="font-size:26px;font-weight:700;margin:10px 0">Mesa ' + m.num + '</div>'
+      + '<div style="font-size:9px;color:#aaa;word-break:break-all">' + url + '</div>'
+      + '</div>';
+  });
+
+  const win = window.open('','_blank','width=900,height=700');
+  win.document.write(
+    '<!DOCTYPE html><html><head><meta charset="UTF-8"><title>QRs de mesas</title>'
+    + '<style>*{box-sizing:border-box;margin:0;padding:0}body{font-family:sans-serif;padding:24px;background:#fff;color:#000}'
+    + '.grid{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;margin-top:16px}'
+    + '.btn{display:inline-block;padding:10px 24px;background:#000;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer;margin-bottom:16px}'
+    + '@media print{.btn{display:none}.grid{grid-template-columns:repeat(3,1fr)}}</style></head><body>'
+    + '<button class="btn" onclick="window.print()">\uD83D\uDDA8 Imprimir todos (' + mesas.length + ' mesas)</button>'
+    + '<div class="grid">' + rows + '</div>'
+    + '</body></html>'
+  );
+  win.document.close();
+}
+
 boot();
 </script>
 </body>

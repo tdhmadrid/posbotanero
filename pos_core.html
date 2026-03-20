@@ -88,6 +88,7 @@ input,select,textarea{font-family:var(--fb);}
 .mesa-card{background:var(--s1);border:2px solid var(--bdr);border-radius:var(--r2);padding:14px 10px;cursor:pointer;transition:.18s;text-align:center;aspect-ratio:1.05;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:3px;position:relative;}
 .mesa-card:hover{transform:translateY(-2px);box-shadow:0 6px 20px rgba(0,0,0,.4);}
 .mesa-card.libre{border-color:var(--bdr);}
+.mesa-card.abierta{border-color:var(--teal);background:rgba(16,185,129,.06);}
 .mesa-card.ocupada{border-color:var(--gold);background:var(--gold-d);}
 .mesa-card.cocina{border-color:var(--blue);background:var(--blue-d);}
 .mesa-card.listo{border-color:var(--teal);background:var(--teal-d);}
@@ -602,8 +603,12 @@ let currentMesa = null;
 
 async function loadMesas() {
   try {
-    const pedidos = await SB.sel('pos_pedidos','estado=in.(abierto,en-cocina,listo)&order=created_at.asc');
+    const [pedidos, mesas] = await Promise.all([
+      SB.sel('pos_pedidos','estado=in.(abierto,en-cocina,listo)&order=created_at.asc'),
+      SB.sel('pos_mesas','activa=eq.true&order=num.asc'),
+    ]);
     C.pedidos = pedidos;
+    C.mesas   = mesas;
     renderMesas();
   } catch(e) { toast('Error cargando mesas: '+e.message,'err'); }
 }
@@ -611,8 +616,9 @@ setInterval(loadMesas, 15000);
 
 function renderMesas() {
   const stOf = m => {
+    if (!m.sesion_activa) return 'libre';
     const p = C.pedidos.find(x=>x.mesa_id===m.id);
-    if (!p) return 'libre';
+    if (!p) return 'abierta';
     if (p.estado==='listo')     return 'listo';
     if (p.estado==='en-cocina') return 'cocina';
     return 'ocupada';
@@ -902,8 +908,13 @@ async function procesarCobro() {
 
     closeCobro();
     printTicket(factura, cfg);
+    // Cerrar sesión de mesa
+    if (currentMesa) {
+      await SB.upd('pos_mesas',{id:currentMesa.id},{sesion_activa:false,comensales:0,abierta_por:null,abierta_at:null});
+    }
     orden={};
     currentPedidoId=null;
+    currentMesa=null;
     renderOrden();
     await loadMesas();
     toast(`✅ Cobro completado — ${numFact}`,'ok');
