@@ -227,7 +227,7 @@ async function init() {
       mesaId = mesa.id;
       // Buscar pedido abierto existente para esta mesa
       const pedidos = await sbSel('pos_pedidos',
-        `mesa_id=eq.${mesaId}&estado=in.(abierto,en-cocina)&order=created_at.desc&limit=1`
+        `mesa_id=eq.${mesaId}&estado=in.(abierto,en-cocina,listo,entregado)&order=created_at.desc&limit=1`
       );
       pedidoExistenteId = pedidos[0]?.id || null;
     }

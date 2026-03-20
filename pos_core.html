@@ -602,7 +602,7 @@ let currentMesa = null;
 
 async function loadMesas() {
   try {
-    const pedidos = await SB.sel('pos_pedidos','estado=in.(abierto,en-cocina,listo)&order=created_at.asc');
+    const pedidos = await SB.sel('pos_pedidos','estado=in.(abierto,en-cocina,listo,entregado)&order=created_at.asc');
     C.pedidos = pedidos;
     renderMesas();
   } catch(e) { toast('Error cargando mesas: '+e.message,'err'); }
@@ -613,8 +613,9 @@ function renderMesas() {
   const stOf = m => {
     const p = C.pedidos.find(x=>x.mesa_id===m.id);
     if (!p) return 'libre';
-    if (p.estado==='listo') return 'listo';
+    if (p.estado==='listo')     return 'listo';
     if (p.estado==='en-cocina') return 'cocina';
+    if (p.estado==='entregado') return 'ocupada'; // cuenta abierta, esperando pago
     return 'ocupada';
   };
   const stLabel = {libre:'Libre',ocupada:'Ocupada',cocina:'En cocina',listo:'Listo'};
@@ -657,7 +658,7 @@ async function clickMesa(mid) {
   if (!mesa) return;
   currentMesa = mesa;
   // Cargar pedido activo de esta mesa
-  const pedidos = await SB.sel('pos_pedidos',`mesa_id=eq.${mid}&estado=in.(abierto,en-cocina)&order=created_at.desc&limit=1`);
+  const pedidos = await SB.sel('pos_pedidos',`mesa_id=eq.${mid}&estado=in.(abierto,en-cocina,listo,entregado)&order=created_at.desc&limit=1`);
   currentPedidoId = pedidos[0]?.id || null;
   orden = {};
   if (pedidos[0]?.items) {
