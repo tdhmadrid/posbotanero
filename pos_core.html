@@ -912,8 +912,12 @@ async function procesarCobro() {
 
     closeCobro();
     printTicket(factura, cfg);
-    // Cerrar sesión de mesa
+    // Cerrar sesión de mesa y cancelar pedidos residuales
     if (currentMesa) {
+      const residuales = await SB.sel('pos_pedidos','mesa_id=eq.'+currentMesa.id+'&estado=in.(abierto,en-cocina,listo,entregado)');
+      for (const p of residuales) {
+        if (p.id !== currentPedidoId) await SB.upd('pos_pedidos',{id:p.id},{estado:'cancelado'});
+      }
       await SB.upd('pos_mesas',{id:currentMesa.id},{sesion_activa:false,comensales:0,abierta_por:null,abierta_at:null});
     }
     orden={};

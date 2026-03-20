@@ -708,17 +708,37 @@ async function confirmarAbrirMesa(){
   if(!mesaParaAbrir)return;
   load(true);
   try{
+    // Cancelar cualquier pedido residual de sesiones anteriores
+    const pedidosViejos=await SB.sel('pos_pedidos','mesa_id=eq.'+mesaParaAbrir.id+'&estado=in.(abierto,en-cocina,listo,entregado)');
+    for(const p of pedidosViejos){
+      await SB.upd('pos_pedidos',{id:p.id},{estado:'cancelado'});
+    }
+    // Abrir la mesa
     await SB.upd('pos_mesas',{id:mesaParaAbrir.id},{sesion_activa:true,comensales:comensalesCount,abierta_por:currentUser.id,abierta_at:new Date().toISOString()});
     const idx=C.mesas.findIndex(m=>m.id===mesaParaAbrir.id);
     if(idx>=0){C.mesas[idx].sesion_activa=true;C.mesas[idx].comensales=comensalesCount;C.mesas[idx].abierta_at=new Date().toISOString();}
     closeM('mAbrirMesa');renderMesas();
     toast('\uD83D\uDD13 Mesa '+mesaParaAbrir.num+' abierta \u2014 '+comensalesCount+' comensales','ok');
-    await clickMesa(mesaParaAbrir.id);
+    // Ir a comanda vacía directamente (sin buscar pedidos anteriores)
+    currentMesa=mesaParaAbrir;
+    currentPedidoId=null;
+    orden={};
+    document.getElementById('comandaTitle').textContent='Mesa '+mesaParaAbrir.num;
+    document.getElementById('comandaBadge').textContent='M'+mesaParaAbrir.num;
+    document.getElementById('cobroMesaBadge').textContent='M'+mesaParaAbrir.num;
+    document.getElementById('nt-comanda').style.display='flex';
+    navTo('comanda',document.getElementById('nt-comanda'));
+    renderOrden();
   }catch(e){toast('Error al abrir mesa: '+e.message,'err');}
   finally{load(false);}
 }
 async function cerrarSesionMesa(mesaId){
   try{
+    // Cancelar pedidos residuales que no quedaron en pagado
+    const residuales=await SB.sel('pos_pedidos','mesa_id=eq.'+mesaId+'&estado=in.(abierto,en-cocina,listo,entregado)');
+    for(const p of residuales){
+      await SB.upd('pos_pedidos',{id:p.id},{estado:'cancelado'});
+    }
     await SB.upd('pos_mesas',{id:mesaId},{sesion_activa:false,comensales:0,abierta_por:null,abierta_at:null});
     const idx=C.mesas.findIndex(m=>m.id===mesaId);
     if(idx>=0){C.mesas[idx].sesion_activa=false;C.mesas[idx].comensales=0;C.mesas[idx].abierta_at=null;}
