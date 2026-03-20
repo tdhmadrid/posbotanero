@@ -194,6 +194,24 @@ select.fc option{background:var(--s2);}
   .qr-print-all { display: block !important; }
 }
 .qr-print-all { display: none; }
+
+/* ── PLANO ── */
+.plano-mesa, .plano-item {
+  position:absolute;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  cursor:grab;user-select:none;transition:box-shadow .15s;
+  gap:1px;
+}
+.plano-mesa:active, .plano-item:active { cursor:grabbing; }
+.plano-mesa.selected { box-shadow:0 0 0 3px var(--gold); z-index:50; }
+.plano-item.selected { box-shadow:0 0 0 3px var(--blue); z-index:50; }
+.plano-item { border-radius:6px; padding:4px 6px; }
+.plano-del-btn {
+  position:absolute;top:-8px;right:-8px;width:18px;height:18px;
+  border-radius:50%;border:none;background:var(--red);color:#fff;
+  font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;
+  z-index:100;
+}
 </style>
 </head>
 <body>
@@ -234,6 +252,7 @@ select.fc option{background:var(--s2);}
         <button class="ni on" id="ni-usuarios" onclick="navTo('usuarios',this)"><span class="ico">&#x1F465;</span>Usuarios</button>
         <button class="ni" id="ni-mesas" onclick="navTo('mesas',this)"><span class="ico">&#x1F5FA;</span>Mapa de mesas</button>
         <button class="ni" id="ni-carta" onclick="navTo('carta',this)"><span class="ico">&#x1F4CB;</span>Carta</button>
+        <button class="ni" id="ni-plano" onclick="navTo('plano',this)"><span class="ico">&#x1F5FA;&#xFE0F;</span>Plano del local</button>
         <button class="ni" id="ni-qrs" onclick="navTo('qrs',this)"><span class="ico">&#x1F4F2;</span>QRs de mesas</button>
         <div class="sb-sect">Abrir módulo</div>
         <a href="pos_core.html"   target="_blank" class="ni" style="text-decoration:none"><span class="ico">🖥️</span>TPV — Mostrador</a>
@@ -284,6 +303,37 @@ select.fc option{background:var(--s2);}
             <button class="btn btn-primary" onclick="openMesaModal()">+ Mesa</button>
           </div>
           <div id="mesasLayout"></div>
+        </div>
+
+        <!-- PLANO -->
+        <div class="panel" id="panel-plano">
+          <div class="ph" style="flex-shrink:0">
+            <div class="ph-left"><h2>Plano del local</h2><div class="ph-desc">Arrastra mesas y elementos para recrear tu sala</div></div>
+            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+              <button id="snapBtn" class="btn btn-ghost btn-sm" onclick="toggleSnap()">&#x229E; Snap ON</button>
+              <div style="display:flex;align-items:center;gap:6px">
+                <button class="btn btn-ghost btn-sm" onclick="setPlanoZoom(Math.max(.5,planoZoom-.25))">&#x2212;</button>
+                <span id="zoomLabel" style="font-size:12px;min-width:38px;text-align:center">100%</span>
+                <button class="btn btn-ghost btn-sm" onclick="setPlanoZoom(Math.min(2,planoZoom+.25))">+</button>
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="openAddItemModal()">&#x1F6CB;&#xFE0F; + Mobiliario</button>
+              <button class="btn btn-ghost btn-sm" onclick="loadPlano()">&#x21BB; Recargar</button>
+            </div>
+          </div>
+
+          <!-- Leyenda formas mesa -->
+          <div style="display:flex;gap:8px;padding:8px 0 10px;flex-shrink:0;flex-wrap:wrap">
+            <div style="font-size:11px;color:var(--t3);font-weight:700;letter-spacing:1px;text-transform:uppercase;align-self:center">Forma de mesa:</div>
+            <button class="btn btn-ghost btn-sm" onclick="changeMesaFormaSelected('cuadrada')">&#x25A0; Cuadrada</button>
+            <button class="btn btn-ghost btn-sm" onclick="changeMesaFormaSelected('redonda')">&#x25CF; Redonda</button>
+            <button class="btn btn-ghost btn-sm" onclick="changeMesaFormaSelected('rectangular')">&#x25AC; Rectangular</button>
+            <div style="font-size:11px;color:var(--t3);margin-left:6px;align-self:center">Selecciona una mesa y cambia su forma</div>
+          </div>
+
+          <!-- Canvas wrapper -->
+          <div id="planoWrap" style="flex:1;overflow:auto;border:1px solid var(--bdr);border-radius:var(--r);background:var(--s2);position:relative;min-height:400px">
+            <div id="planoCanvas" style="position:relative;min-width:900px;min-height:600px;transform-origin:top left"></div>
+          </div>
         </div>
 
         <!-- CARTA -->
@@ -470,6 +520,39 @@ select.fc option{background:var(--s2);}
   </div>
 </div>
 
+<!-- MODAL AÑADIR MOBILIARIO AL PLANO -->
+<div class="movl" id="mPlanoItem">
+  <div class="mbox" style="width:440px">
+    <div class="mh">&#x1F6CB;&#xFE0F; Añadir al plano</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">
+      <button class="btn btn-ghost" onclick="addPlanoItem('pared')" style="flex-direction:column;padding:14px;gap:5px;height:72px">
+        <span style="font-size:20px">&#x25AC;</span><span>Pared / División</span>
+      </button>
+      <button class="btn btn-ghost" onclick="addPlanoItem('barra')" style="flex-direction:column;padding:14px;gap:5px;height:72px">
+        <span style="font-size:20px">&#x1F37A;</span><span>Barra de bar</span>
+      </button>
+      <button class="btn btn-ghost" onclick="addPlanoItem('ventana')" style="flex-direction:column;padding:14px;gap:5px;height:72px">
+        <span style="font-size:20px">&#x1FA9F;</span><span>Ventana</span>
+      </button>
+      <button class="btn btn-ghost" onclick="addPlanoItem('puerta')" style="flex-direction:column;padding:14px;gap:5px;height:72px">
+        <span style="font-size:20px">&#x1F6AA;</span><span>Puerta</span>
+      </button>
+      <button class="btn btn-ghost" onclick="addPlanoItem('planta')" style="flex-direction:column;padding:14px;gap:5px;height:72px">
+        <span style="font-size:20px">&#x1F33F;</span><span>Planta / Decoración</span>
+      </button>
+      <button class="btn btn-ghost" onclick="addPlanoItem('banos')" style="flex-direction:column;padding:14px;gap:5px;height:72px">
+        <span style="font-size:20px">&#x1F6BB;</span><span>Baños</span>
+      </button>
+      <button class="btn btn-ghost" onclick="addPlanoItem('mostrador')" style="flex-direction:column;padding:14px;gap:5px;height:72px">
+        <span style="font-size:20px">&#x1F3EA;</span><span>Mostrador / Caja</span>
+      </button>
+    </div>
+    <div class="mactions">
+      <button class="btn btn-ghost" onclick="closeAddItemModal()">Cancelar</button>
+    </div>
+  </div>
+</div>
+
 <div id="ta"></div>
 
 <script>
@@ -612,7 +695,7 @@ function showLoading(on) {
 // ─────────────────────────────────────────
 // NAV
 // ─────────────────────────────────────────
-const TITLES = { usuarios:'Usuarios', mesas:'Mapa de mesas', carta:'Carta', config:'Configuración', qrs:'QRs de mesas' };
+const TITLES = { usuarios:'Usuarios', mesas:'Mapa de mesas', carta:'Carta', config:'Configuración', qrs:'QRs de mesas', plano:'Plano del local' };
 function navTo(name, btn) {
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.ni').forEach(b=>b.classList.remove('on'));
@@ -623,6 +706,7 @@ function navTo(name, btn) {
   if (name==='carta')  renderCarta();
   if (name==='config') loadConfig();
   if (name==='qrs')    renderQRs();
+  if (name==='plano')  loadPlano();
 }
 
 function tick() { document.getElementById('clock').textContent = new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}); }
@@ -1438,6 +1522,320 @@ function printAllQRs() {
     + '</body></html>'
   );
   win.document.close();
+}
+
+
+// ═══════════════════════════════════════════════════════════
+// PLANO INTERACTIVO DE MESAS
+// ═══════════════════════════════════════════════════════════
+
+// State
+let planoMesas = [];      // mesas con pos_x, pos_y
+let planoItems = [];      // mobiliario
+let planoDrag  = null;    // { type:'mesa'|'item', id, offX, offY }
+let planoSnap  = true;    // snap a grid de 20px
+let planoZoom  = 1;
+let planoSel   = null;    // elemento seleccionado { type, id }
+const GRID     = 20;
+const ZONA_COLORS = ['#1e3a5f','#1a4731','#3d1a5f','#4a2c0a','#1a3a4a','#4a1a1a'];
+
+// Tipos de mobiliario
+const ITEM_TYPES = {
+  pared:     { label:'Pared',       icon:'▬', color:'#555', w:160, h:20  },
+  barra:     { label:'Barra',       icon:'🍺', color:'#6b4226', w:200, h:50 },
+  ventana:   { label:'Ventana',     icon:'⬜', color:'#4a90a4', w:80,  h:15 },
+  puerta:    { label:'Puerta',      icon:'🚪', color:'#8B6914', w:40,  h:15 },
+  planta:    { label:'Planta',      icon:'🌿', color:'#2d6a2d', w:40,  h:40 },
+  banos:     { label:'Baños',       icon:'🚻', color:'#4a5568', w:80,  h:80 },
+  mostrador: { label:'Mostrador',   icon:'🏪', color:'#5a4a3a', w:120, h:60 },
+};
+
+// Snap helper
+function snap(v) { return planoSnap ? Math.round(v / GRID) * GRID : v; }
+
+// ─── RENDER PLANO ───
+function renderPlano() {
+  const canvas = document.getElementById('planoCanvas');
+  if (!canvas) return;
+  const zonas = cache.zonas;
+
+  // Build zona color map
+  const zonaColorMap = {};
+  zonas.forEach((z, i) => { zonaColorMap[z.id] = ZONA_COLORS[i % ZONA_COLORS.length]; });
+
+  // Canvas size: determine from content + margin
+  const allX = planoMesas.map(m => (m.pos_x||100) + 80).concat(planoItems.map(i => (i.pos_x||50) + (i.ancho||120)));
+  const allY = planoMesas.map(m => (m.pos_y||100) + 80).concat(planoItems.map(i => (i.pos_y||50) + (i.alto||40)));
+  const cW = Math.max(900, ...allX) + 100;
+  const cH = Math.max(600, ...allY) + 100;
+  canvas.style.width  = cW + 'px';
+  canvas.style.height = cH + 'px';
+
+  // Draw grid dots
+  let gridHtml = '<svg style="position:absolute;inset:0;pointer-events:none" width="' + cW + '" height="' + cH + '">';
+  if (planoSnap) {
+    for (let x = GRID; x < cW; x += GRID) {
+      for (let y = GRID; y < cH; y += GRID) {
+        gridHtml += '<circle cx="' + x + '" cy="' + y + '" r="1" fill="rgba(255,255,255,.08)"/>';
+      }
+    }
+  }
+  gridHtml += '</svg>';
+
+  // Zona backgrounds
+  let zonasBg = '';
+  zonas.forEach((z, i) => {
+    // Find bounding box of mesas in this zona
+    const zm = planoMesas.filter(m => m.zona_id === z.id);
+    if (!zm.length) return;
+    const xs = zm.map(m => m.pos_x || 100);
+    const ys = zm.map(m => m.pos_y || 100);
+    const x1 = Math.min(...xs) - 30;
+    const y1 = Math.min(...ys) - 40;
+    const x2 = Math.max(...xs) + 110;
+    const y2 = Math.max(...ys) + 110;
+    const col = zonaColorMap[z.id] || '#1e3a5f';
+    zonasBg += '<div style="position:absolute;left:' + x1 + 'px;top:' + y1 + 'px;width:' + (x2-x1) + 'px;height:' + (y2-y1) + 'px;background:' + col + '22;border:1px dashed ' + col + '55;border-radius:12px;pointer-events:none">'
+      + '<span style="position:absolute;top:6px;left:10px;font-size:11px;font-weight:700;color:' + col + 'cc;letter-spacing:1px;text-transform:uppercase">' + z.icon + ' ' + z.nombre + '</span>'
+      + '</div>';
+  });
+
+  // Mobiliario items
+  let itemsHtml = '';
+  planoItems.forEach(item => {
+    const sel  = planoSel && planoSel.type === 'item' && planoSel.id === item.id;
+    const cfg  = ITEM_TYPES[item.tipo] || ITEM_TYPES.pared;
+    const col  = item.color || cfg.color;
+    itemsHtml += '<div class="plano-item' + (sel ? ' selected' : '') + '"'
+      + ' data-type="item" data-id="' + item.id + '"'
+      + ' style="left:' + (item.pos_x||50) + 'px;top:' + (item.pos_y||50) + 'px;'
+      + 'width:' + (item.ancho||cfg.w) + 'px;height:' + (item.alto||cfg.h) + 'px;'
+      + 'background:' + col + ';border:1px solid ' + col + 'aa;">'
+      + '<span style="font-size:11px;font-weight:600;color:#fff;opacity:.9;user-select:none;overflow:hidden;white-space:nowrap;text-overflow:ellipsis">'
+      + (item.label || cfg.label) + '</span>'
+      + (sel ? '<button class="plano-del-btn" onclick="deletePlanoItem(\'' + item.id + '\')" title="Eliminar">✕</button>' : '')
+      + '</div>';
+  });
+
+  // Mesas
+  let mesasHtml = '';
+  planoMesas.forEach(m => {
+    const sel   = planoSel && planoSel.type === 'mesa' && planoSel.id === m.id;
+    const round = m.forma === 'redonda';
+    const wide  = m.forma === 'rectangular';
+    const w     = wide ? 100 : 72;
+    const h     = wide ? 56  : 72;
+    const col   = zonaColorMap[m.zona_id] || '#f59e0b';
+    const bdr   = round ? '50%' : '10px';
+    mesasHtml += '<div class="plano-mesa' + (sel ? ' selected' : '') + '"'
+      + ' data-type="mesa" data-id="' + m.id + '"'
+      + ' style="left:' + (m.pos_x||100) + 'px;top:' + (m.pos_y||100) + 'px;'
+      + 'width:' + w + 'px;height:' + h + 'px;border-radius:' + bdr + ';'
+      + 'border:2px solid ' + col + ';background:' + col + '22;">'
+      + '<div style="font-size:10px;color:' + col + ';font-weight:700;user-select:none">' + (m.icon||'🪑') + '</div>'
+      + '<div style="font-size:12px;font-weight:700;color:#f0f0f0;user-select:none">M' + m.num + '</div>'
+      + '<div style="font-size:9px;color:#888;user-select:none">' + m.cap + 'p</div>'
+      + (sel ? '<button class="plano-del-btn" onclick="event.stopPropagation()" title="" style="display:none"></button>' : '')
+      + '</div>';
+  });
+
+  canvas.innerHTML = zonasBg + gridHtml + itemsHtml + mesasHtml;
+
+  // Attach drag events
+  canvas.querySelectorAll('.plano-mesa, .plano-item').forEach(el => {
+    el.addEventListener('mousedown', planoDragStart);
+    el.addEventListener('touchstart', planoDragStartTouch, {passive:false});
+  });
+}
+
+// ─── DRAG ───
+function planoDragStart(e) {
+  if (e.target.classList.contains('plano-del-btn')) return;
+  e.preventDefault();
+  const el  = e.currentTarget;
+  const type = el.dataset.type;
+  const id   = el.dataset.id;
+  const rect = el.getBoundingClientRect();
+  const canvasRect = document.getElementById('planoCanvas').getBoundingClientRect();
+  planoDrag = { type, id, el,
+    offX: e.clientX - rect.left,
+    offY: e.clientY - rect.top,
+  };
+  planoSel = { type, id };
+  el.style.zIndex = 1000;
+  el.style.opacity = '0.85';
+  document.addEventListener('mousemove', planoDragMove);
+  document.addEventListener('mouseup',   planoDragEnd);
+}
+
+function planoDragStartTouch(e) {
+  e.preventDefault();
+  const touch = e.touches[0];
+  const el    = e.currentTarget;
+  const rect  = el.getBoundingClientRect();
+  planoDrag = { type: el.dataset.type, id: el.dataset.id, el,
+    offX: touch.clientX - rect.left,
+    offY: touch.clientY - rect.top,
+  };
+  planoSel = { type: el.dataset.type, id: el.dataset.id };
+  document.addEventListener('touchmove', planoDragMoveTouch, {passive:false});
+  document.addEventListener('touchend',  planoDragEndTouch);
+}
+
+function getCanvasPos(clientX, clientY) {
+  const wrap = document.getElementById('planoWrap');
+  const rect = wrap.getBoundingClientRect();
+  const scrollX = wrap.scrollLeft;
+  const scrollY = wrap.scrollTop;
+  return {
+    x: snap((clientX - rect.left + scrollX - planoDrag.offX) / planoZoom),
+    y: snap((clientY - rect.top  + scrollY - planoDrag.offY) / planoZoom),
+  };
+}
+
+function planoDragMove(e) {
+  if (!planoDrag) return;
+  const pos = getCanvasPos(e.clientX, e.clientY);
+  planoDrag.el.style.left = pos.x + 'px';
+  planoDrag.el.style.top  = pos.y + 'px';
+}
+function planoDragMoveTouch(e) {
+  if (!planoDrag) return;
+  e.preventDefault();
+  const touch = e.touches[0];
+  const pos = getCanvasPos(touch.clientX, touch.clientY);
+  planoDrag.el.style.left = pos.x + 'px';
+  planoDrag.el.style.top  = pos.y + 'px';
+}
+
+async function planoDragEnd(e) {
+  if (!planoDrag) return;
+  const pos = getCanvasPos(e.clientX, e.clientY);
+  await savePlanoPos(planoDrag.type, planoDrag.id, Math.max(0,pos.x), Math.max(0,pos.y));
+  planoDrag.el.style.zIndex  = '';
+  planoDrag.el.style.opacity = '';
+  planoDrag = null;
+  document.removeEventListener('mousemove', planoDragMove);
+  document.removeEventListener('mouseup',   planoDragEnd);
+}
+async function planoDragEndTouch(e) {
+  if (!planoDrag) return;
+  const touch = e.changedTouches[0];
+  const pos = getCanvasPos(touch.clientX, touch.clientY);
+  await savePlanoPos(planoDrag.type, planoDrag.id, Math.max(0,pos.x), Math.max(0,pos.y));
+  planoDrag = null;
+  document.removeEventListener('touchmove', planoDragMoveTouch);
+  document.removeEventListener('touchend',  planoDragEndTouch);
+}
+
+// ─── SAVE POSITION ───
+async function savePlanoPos(type, id, x, y) {
+  try {
+    if (type === 'mesa') {
+      await SB.update('pos_mesas', {id}, {pos_x: x, pos_y: y});
+      const m = planoMesas.find(m => m.id === id);
+      if (m) { m.pos_x = x; m.pos_y = y; }
+      // Also update cache.mesas
+      const cm = cache.mesas.find(m => m.id === id);
+      if (cm) { cm.pos_x = x; cm.pos_y = y; }
+    } else {
+      await SB.update('pos_plano_items', {id}, {pos_x: x, pos_y: y});
+      const it = planoItems.find(i => i.id === id);
+      if (it) { it.pos_x = x; it.pos_y = y; }
+    }
+    renderPlano();
+  } catch(e) { toast('Error guardando posición: ' + e.message, 'err'); }
+}
+
+// ─── LOAD PLANO ───
+async function loadPlano() {
+  try {
+    const [mesas, items] = await Promise.all([
+      SB.select('pos_mesas', 'order=num.asc'),
+      SB.select('pos_plano_items', 'order=created_at.asc').catch(() => []),
+    ]);
+    planoMesas = mesas;
+    planoItems = items || [];
+    renderPlano();
+  } catch(e) { toast('Error cargando plano: ' + e.message, 'err'); }
+}
+
+// ─── ADD MOBILIARIO ───
+function openAddItemModal() {
+  document.getElementById('mPlanoItem').classList.add('on');
+}
+function closeAddItemModal() {
+  document.getElementById('mPlanoItem').classList.remove('on');
+}
+
+async function addPlanoItem(tipo) {
+  const cfg = ITEM_TYPES[tipo] || ITEM_TYPES.pared;
+  // Find a free spot
+  const usedY = planoItems.map(i => i.pos_y || 50);
+  const y = usedY.length ? Math.max(...usedY) + 60 : 50;
+  const row = {
+    id:    'pi_' + Date.now(),
+    tipo,
+    label: cfg.label,
+    pos_x: 50,
+    pos_y: Math.min(y, 500),
+    ancho: cfg.w,
+    alto:  cfg.h,
+    color: cfg.color,
+  };
+  try {
+    await SB.insert('pos_plano_items', row);
+    planoItems.push(row);
+    closeAddItemModal();
+    renderPlano();
+    toast(cfg.icon + ' ' + cfg.label + ' añadido al plano', 'ok');
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+async function deletePlanoItem(id) {
+  if (!confirm('¿Eliminar este elemento del plano?')) return;
+  try {
+    await SB.delete('pos_plano_items', {id});
+    planoItems = planoItems.filter(i => i.id !== id);
+    planoSel = null;
+    renderPlano();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+// ─── MESA FORMA ───
+async function setMesaForma(id, forma) {
+  try {
+    await SB.update('pos_mesas', {id}, {forma});
+    const m = planoMesas.find(m => m.id === id);
+    if (m) m.forma = forma;
+    renderPlano();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+// ─── ZOOM ───
+function setPlanoZoom(z) {
+  planoZoom = z;
+  const canvas = document.getElementById('planoCanvas');
+  if (canvas) canvas.style.transform = 'scale(' + z + ')';
+  canvas.style.transformOrigin = 'top left';
+  document.getElementById('zoomLabel').textContent = Math.round(z * 100) + '%';
+}
+
+// ─── SNAP TOGGLE ───
+function toggleSnap() {
+  planoSnap = !planoSnap;
+  const btn = document.getElementById('snapBtn');
+  if (btn) {
+    btn.textContent = planoSnap ? '⊞ Snap ON' : '⊞ Snap OFF';
+    btn.style.opacity = planoSnap ? '1' : '0.5';
+  }
+}
+
+
+// Helper: change forma of selected mesa
+function changeMesaFormaSelected(forma) {
+  if (!planoSel || planoSel.type !== 'mesa') { toast('Selecciona una mesa primero', 'inf'); return; }
+  setMesaForma(planoSel.id, forma);
 }
 
 boot();
