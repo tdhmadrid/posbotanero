@@ -434,6 +434,32 @@ input,select,textarea{font-family:var(--fb);}
   </div>
 </div>
 
+<!-- MODAL ABRIR MESA -->
+<div class="movl" id="mAbrirMesa">
+  <div class="mbox" style="width:340px;text-align:center">
+    <div class="mh" style="justify-content:center" id="mAbrirTitle">Abrir mesa</div>
+    <div style="font-size:44px;margin-bottom:8px" id="mAbrirIcon">&#x1FA91;</div>
+    <div style="font-size:17px;font-weight:700;margin-bottom:4px" id="mAbrirMesaNum">Mesa —</div>
+    <div style="font-size:12px;color:var(--t3);margin-bottom:20px" id="mAbrirZona"></div>
+    <div style="font-size:11px;color:var(--t2);font-weight:700;margin-bottom:10px;letter-spacing:.5px">N&#xFA;MERO DE COMENSALES</div>
+    <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:14px">
+      <button class="btn btn-ghost" onclick="coreChangeComensales(-1)" style="padding:6px 14px;font-size:18px">&#x2212;</button>
+      <span id="coreComensalesNum" style="font-size:36px;font-weight:700;min-width:44px;text-align:center">2</span>
+      <button class="btn btn-ghost" onclick="coreChangeComensales(1)" style="padding:6px 14px;font-size:18px">+</button>
+    </div>
+    <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:18px">
+      <button class="btn btn-ghost btn-sm" onclick="coreSetComensales(1)" style="justify-content:center">1</button>
+      <button class="btn btn-ghost btn-sm" onclick="coreSetComensales(2)" style="justify-content:center">2</button>
+      <button class="btn btn-ghost btn-sm" onclick="coreSetComensales(4)" style="justify-content:center">4</button>
+      <button class="btn btn-ghost btn-sm" onclick="coreSetComensales(6)" style="justify-content:center">6</button>
+    </div>
+    <div class="mactions">
+      <button class="btn btn-ghost" onclick="closeM('mAbrirMesa')">Cancelar</button>
+      <button class="btn btn-primary" onclick="coreConfirmarAbrirMesa()" style="flex:1;justify-content:center;padding:11px">&#x1F513; Abrir mesa</button>
+    </div>
+  </div>
+</div>
+
 <div id="ticketPrint"></div>
 <div id="ta"></div>
 <div id="loader"><span>Cargando&#x2026;</span></div>
@@ -665,8 +691,11 @@ async function clickMesa(mid) {
   const mesa = C.mesas.find(m=>m.id===mid);
   if (!mesa) return;
   currentMesa = mesa;
-  // Solo cargar pedido si la mesa tiene sesión activa
-  if (!mesa.sesion_activa) { orden={}; renderOrden(); return; }
+  // Si la mesa no está abierta → mostrar modal de apertura
+  if (!mesa.sesion_activa) {
+    coreAbrirMesaModal(mesa);
+    return;
+  }
   const pedidos = await SB.sel('pos_pedidos',`mesa_id=eq.${mid}&estado=in.(abierto,en-cocina,listo,entregado)&order=created_at.desc&limit=1`);
   currentPedidoId = pedidos[0]?.id || null;
   orden = {};
@@ -1372,6 +1401,72 @@ function imprimirInformeCierre(d) {
   window.print();
 }
 
+
+// ─── APERTURA DE MESA (TPV) ───
+var coreMesaParaAbrir = null;
+var coreComensalesCount = 2;
+
+function coreAbrirMesaModal(mesa) {
+  coreMesaParaAbrir = mesa;
+  coreComensalesCount = mesa.cap || 2;
+  document.getElementById('mAbrirTitle').textContent = 'Abrir Mesa ' + mesa.num;
+  document.getElementById('mAbrirMesaNum').textContent = 'Mesa ' + mesa.num;
+  document.getElementById('mAbrirIcon').textContent = mesa.icon || '\uD83E\uDEAD';
+  const zona = C.zonas.find(z => z.id === mesa.zona_id);
+  document.getElementById('mAbrirZona').textContent = zona ? zona.icon + ' ' + zona.nombre : '';
+  document.getElementById('coreComensalesNum').textContent = coreComensalesCount;
+  openM('mAbrirMesa');
+}
+
+function coreChangeComensales(d) {
+  coreComensalesCount = Math.max(1, Math.min(30, coreComensalesCount + d));
+  document.getElementById('coreComensalesNum').textContent = coreComensalesCount;
+}
+function coreSetComensales(n) {
+  coreComensalesCount = n;
+  document.getElementById('coreComensalesNum').textContent = n;
+}
+
+async function coreConfirmarAbrirMesa() {
+  if (!coreMesaParaAbrir) return;
+  load(true);
+  try {
+    // Cancelar pedidos residuales de sesiones anteriores
+    const viejos = await SB.sel('pos_pedidos', 'mesa_id=eq.' + coreMesaParaAbrir.id + '&estado=in.(abierto,en-cocina,listo,entregado)');
+    for (const p of viejos) {
+      await SB.upd('pos_pedidos', {id: p.id}, {estado: 'cancelado'});
+    }
+    // Abrir la mesa
+    await SB.upd('pos_mesas', {id: coreMesaParaAbrir.id}, {
+      sesion_activa: true,
+      comensales: coreComensalesCount,
+      abierta_por: currentUser.id,
+      abierta_at: new Date().toISOString(),
+    });
+    // Actualizar cache local
+    const idx = C.mesas.findIndex(m => m.id === coreMesaParaAbrir.id);
+    if (idx >= 0) {
+      C.mesas[idx].sesion_activa = true;
+      C.mesas[idx].comensales    = coreComensalesCount;
+      C.mesas[idx].abierta_at    = new Date().toISOString();
+    }
+    closeM('mAbrirMesa');
+    toast('\uD83D\uDD13 Mesa ' + coreMesaParaAbrir.num + ' abierta \u2014 ' + coreComensalesCount + ' comensales', 'ok');
+
+    // Ir a comanda vacía
+    currentMesa       = C.mesas[idx] || coreMesaParaAbrir;
+    currentPedidoId   = null;
+    orden             = {};
+    document.getElementById('cartaTitle').textContent = 'Mesa ' + coreMesaParaAbrir.num;
+    document.getElementById('ordenBadge').textContent = 'M' + coreMesaParaAbrir.num;
+    document.getElementById('cobroMesaBadge').textContent = 'M' + coreMesaParaAbrir.num;
+    document.getElementById('nt-pedido').style.display = 'flex';
+    navTo('pedido', document.getElementById('nt-pedido'));
+    renderOrden();
+    await loadMesas();
+  } catch(e) { toast('Error al abrir mesa: ' + e.message, 'err'); }
+  finally { load(false); }
+}
 
 // ─── BOOT ───
 initLogin();
