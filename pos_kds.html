@@ -240,8 +240,7 @@ function mergeIncomingPedido(record) {
   }
 
   if (record.estado === 'abierto') return;
-  if (record.estado === 'entregado') return; // Ya entregado — ignorar
-  if (doneIds.has(id)) return; // Entregado en esta sesión — no reinstanciar
+  if (doneIds.has(id)) return; // Ya procesado en esta sesión — no reinstanciar
 
   if (kdsOrders[id]) {
     // Actualizar items si cambiaron, pero conservar estado local y itemsDone
@@ -275,7 +274,7 @@ async function loadPedidos() {
     const pedidos = await sbSel('pos_pedidos',
       'estado=in.(en-cocina,listo)&order=created_at.asc'
     );
-    // Filter out any pedidos already delivered this session (local doneSet guard)
+    // Ignorar pedidos ya procesados en esta sesión (entregados localmente)
     const filteredPedidos = pedidos.filter(p => !doneIds.has(p.id));
 
     // Merge: añadir nuevos, actualizar existentes, quitar los que ya no están
@@ -419,8 +418,7 @@ async function deliverOrder(oid) {
   renderKDS();
   updatePendingCount();
   renderDoneList();
-  // Marcar como entregado en Supabase para que no vuelva a aparecer
-  try { await sbUpd('pos_pedidos', { id: oid }, { estado: 'entregado' }); } catch(_) {}
+  // No tocamos Supabase — el pedido sigue activo hasta que el mesero cobre
 }
 
 function cancelFromKDS(oid) {

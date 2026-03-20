@@ -611,7 +611,7 @@ function handleRealtimePedido(record) {
 // ─── MESAS ───
 async function refreshMesas() {
   try {
-    C.pedidos = await SB.sel('pos_pedidos', 'estado=in.(abierto,en-cocina,listo,entregado)&order=created_at.asc');
+    C.pedidos = await SB.sel('pos_pedidos', 'estado=in.(abierto,en-cocina,listo)&order=created_at.asc');
     renderMesas();
   } catch(e) { toast('Error cargando mesas: ' + e.message, 'err'); }
 }
@@ -622,7 +622,6 @@ function renderMesas() {
     if (!p) return 'libre';
     if (p.estado === 'listo')     return 'listo';
     if (p.estado === 'en-cocina') return 'cocina';
-    if (p.estado === 'entregado') return 'ocupada'; // cuenta abierta, esperando pago
     return 'ocupada';
   };
   var totalOf = function(m) {
@@ -674,7 +673,7 @@ async function clickMesa(mid) {
   // Cargar pedido activo si existe
   load(true);
   try {
-    var pedidos = await SB.sel('pos_pedidos', 'mesa_id=eq.' + mid + '&estado=in.(abierto,en-cocina,listo,entregado)&order=created_at.desc&limit=1');
+    var pedidos = await SB.sel('pos_pedidos', 'mesa_id=eq.' + mid + '&estado=in.(abierto,en-cocina,listo)&order=created_at.desc&limit=1');
     currentPedidoId = pedidos[0] ? pedidos[0].id : null;
     orden = {};
     if (pedidos[0] && pedidos[0].items && pedidos[0].items.length) {
