@@ -418,7 +418,11 @@ async function deliverOrder(oid) {
   renderKDS();
   updatePendingCount();
   renderDoneList();
-  // No tocamos Supabase — el pedido sigue activo hasta que el mesero cobre
+  // Marcar como 'entregado' en Supabase:
+  // - KDS no lo vuelve a mostrar (doneIds + query solo busca en-cocina/listo)
+  // - Waiter quita el banner de alerta (solo muestra banner para 'listo')
+  // - La cuenta sigue abierta hasta cobro (pedido permanece hasta estado=pagado)
+  try { await sbUpd('pos_pedidos', { id: oid }, { estado: 'entregado' }); } catch(_) {}
 }
 
 function cancelFromKDS(oid) {

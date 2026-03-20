@@ -20,34 +20,37 @@
 }
 *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
 body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;max-width:480px;margin:0 auto;}
-.header{padding:16px 16px 0;position:sticky;top:0;background:var(--bg);z-index:100;padding-bottom:12px;border-bottom:1px solid var(--border);}
+.header{padding:12px 16px 0;position:sticky;top:0;background:var(--bg);z-index:100;padding-bottom:10px;border-bottom:1px solid var(--border);backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);}
 .header-top{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
-.restaurant-name{font-size:20px;font-weight:800;letter-spacing:-.5px;flex:1;}
+.restaurant-name{font-size:19px;font-weight:800;letter-spacing:-.5px;flex:1;line-height:1.2;}
 .mesa-badge{background:var(--accent);color:#fff;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;}
-.cats-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;}
+.cats-scroll{display:flex;gap:6px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;padding-top:2px;}
 .cats-scroll::-webkit-scrollbar{display:none;}
-.cat-btn{flex-shrink:0;padding:7px 16px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;font-weight:600;cursor:pointer;color:var(--text2);transition:.15s;white-space:nowrap;}
+.cat-btn{flex-shrink:0;padding:6px 14px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;font-weight:600;cursor:pointer;color:var(--text2);transition:.12s;white-space:nowrap;}
 .cat-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
-.content{padding:16px;padding-bottom:calc(80px + var(--safe-bottom));}
+.content{padding:12px 14px;padding-bottom:calc(90px + var(--safe-bottom));}
 .cat-title{font-size:13px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin:20px 0 10px;}
-.item-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px;display:flex;align-items:flex-start;gap:12px;cursor:pointer;transition:.15s;}
-.item-row:active{transform:scale(.98);}
+.item-row{background:var(--surface);border:1px solid var(--border);border-radius:16px;padding:14px 12px;margin-bottom:10px;display:flex;align-items:center;gap:12px;cursor:pointer;transition:.12s;-webkit-user-select:none;box-shadow:0 1px 3px rgba(0,0,0,.05);}
+.item-row:active{transform:scale(.97);box-shadow:none;}
+.item-row-emoji{font-size:40px;flex-shrink:0;line-height:1;width:48px;text-align:center;}
 .item-row-info{flex:1;min-width:0;}
-.item-row-name{font-size:15px;font-weight:700;margin-bottom:3px;}
-.item-row-desc{font-size:12px;color:var(--text2);line-height:1.4;margin-bottom:6px;}
-.item-tag{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:11px;font-weight:600;margin-bottom:6px;}
+.item-row-name{font-size:15px;font-weight:800;margin-bottom:3px;line-height:1.3;color:var(--text);}
+.item-row-desc{font-size:12px;color:var(--text2);line-height:1.4;margin-bottom:5px;}
+.item-tag{display:inline-flex;align-items:center;gap:3px;padding:2px 8px;border-radius:20px;font-size:10px;font-weight:700;margin-bottom:5px;}
 .tag-popular{background:#fff3e0;color:#c56a00;}
 .tag-vegano{background:#e8f5e9;color:#1a6b3c;}
 .tag-nuevo{background:#e3f2fd;color:#1565c0;}
-.item-row-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:6px;}
-.item-row-price{font-size:16px;font-weight:800;color:var(--accent);}
-.item-row-iva{font-size:10px;color:var(--text3);}
+.item-row-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:4px;}
+.item-row-price{font-size:17px;font-weight:900;color:var(--accent);}
+.item-row-iva{font-size:10px;color:var(--text3);font-weight:500;}
 .item-qty-control{display:flex;align-items:center;gap:8px;}
-.qty-minus,.qty-plus{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--border);background:var(--surface);font-size:18px;font-weight:600;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.15s;color:var(--text);}
+.qty-minus,.qty-plus{width:32px;height:32px;border-radius:50%;border:2px solid var(--border);background:var(--surface);font-size:18px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;transition:.1s;color:var(--text);-webkit-user-select:none;}
 .qty-plus{background:var(--accent);border-color:var(--accent);color:#fff;}
-.qty-num{font-size:16px;font-weight:700;min-width:20px;text-align:center;}
-.add-btn{width:34px;height:34px;border-radius:50%;background:var(--accent);border:none;color:#fff;font-size:22px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:.15s;}
-.add-btn:active{transform:scale(.88);}
+.qty-minus:active{background:var(--border);}
+.qty-plus:active{opacity:.8;}
+.qty-num{font-size:16px;font-weight:800;min-width:22px;text-align:center;}
+.add-btn{width:36px;height:36px;border-radius:50%;background:var(--accent);border:none;color:#fff;font-size:22px;font-weight:700;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:.1s;-webkit-user-select:none;box-shadow:0 2px 8px rgba(212,119,10,.3);}
+.add-btn:active{transform:scale(.82);}
 /* CARRITO BAR */
 .carrito-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;display:none;padding:10px 16px calc(10px + var(--safe-bottom));background:var(--text);z-index:200;}
 .carrito-bar.visible{display:flex;gap:0;align-items:stretch;}
@@ -157,6 +160,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   <button onclick="switchTab('cuenta');closeSuccessAndOpenModal()" style="padding:12px 32px;background:var(--surface);color:var(--text2);border:1px solid var(--border);border-radius:14px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font)">&#x1F9EE; Ver mi cuenta</button>
 </div>
 <script>
+
 'use strict';
 
 const SUPA_URL = 'https://seomuaorrpowiahhniap.supabase.co';
@@ -275,7 +279,7 @@ function renderItemRow(item){
   const qty=carrito[item.id]?carrito[item.id].qty:0;
   const tagMap={popular:'&#x2B50; Popular',vegano:'&#x1F331; Vegano',nuevo:'&#x1F195; Nuevo'};
   return'<div class="item-row" id="ir_'+item.id+'" onclick="addItem(\''+item.id+'\')">'
-    +'<div style="font-size:36px;flex-shrink:0;line-height:1">'+(item.emoji||'\uD83C\uDF7D\uFE0F')+'</div>'
+    +'<div class="item-row-emoji">'+(item.emoji||'\uD83C\uDF7D\uFE0F')+'</div>'
     +'<div class="item-row-info">'
     +(item.tag?'<div class="item-tag tag-'+item.tag+'">'+(tagMap[item.tag]||item.tag)+'</div>':'')
     +'<div class="item-row-name">'+item.name+'</div>'

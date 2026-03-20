@@ -604,7 +604,7 @@ let currentMesa = null;
 async function loadMesas() {
   try {
     const [pedidos, mesas] = await Promise.all([
-      SB.sel('pos_pedidos','estado=in.(abierto,en-cocina,listo)&order=created_at.asc'),
+      SB.sel('pos_pedidos','estado=in.(abierto,en-cocina,listo,entregado)&order=created_at.asc'),
       SB.sel('pos_mesas','activa=eq.true&order=num.asc'),
     ]);
     C.pedidos = pedidos;
@@ -621,6 +621,7 @@ function renderMesas() {
     if (!p) return 'abierta';
     if (p.estado==='listo')     return 'listo';
     if (p.estado==='en-cocina') return 'cocina';
+    if (p.estado==='entregado') return 'ocupada';
     return 'ocupada';
   };
   const stLabel = {libre:'Libre',ocupada:'Ocupada',cocina:'En cocina',listo:'Listo'};
