@@ -1,0 +1,474 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Carta Digital</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #fafaf8;
+  --surface: #fff;
+  --border: #e8e6e0;
+  --accent: #d4770a;
+  --accent2: #1a6b3c;
+  --text: #1a1a18;
+  --text2: #6b6b65;
+  --text3: #a8a89e;
+  --radius: 14px;
+  --font: 'Plus Jakarta Sans', sans-serif;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
+}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;max-width:480px;margin:0 auto;}
+
+/* HEADER */
+.header{padding:20px 16px 0;position:sticky;top:0;background:var(--bg);z-index:100;padding-bottom:12px;border-bottom:1px solid var(--border);}
+.header-top{display:flex;align-items:center;gap:12px;margin-bottom:12px;}
+.restaurant-name{font-size:20px;font-weight:800;letter-spacing:-0.5px;flex:1;}
+.mesa-badge{background:var(--accent);color:#fff;border-radius:20px;padding:4px 12px;font-size:12px;font-weight:700;}
+.cats-scroll{display:flex;gap:8px;overflow-x:auto;padding-bottom:2px;scrollbar-width:none;}
+.cats-scroll::-webkit-scrollbar{display:none;}
+.cat-btn{flex-shrink:0;padding:7px 16px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;font-weight:600;cursor:pointer;color:var(--text2);transition:.15s;white-space:nowrap;}
+.cat-btn.active{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+/* CONTENT */
+.content{padding:16px;}
+.cat-title{font-size:13px;font-weight:700;color:var(--text3);letter-spacing:1px;text-transform:uppercase;margin:20px 0 10px;}
+.item-row{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px;margin-bottom:10px;display:flex;gap:12px;cursor:pointer;transition:.15s;position:relative;overflow:hidden;}
+.item-row:active{transform:scale(.98);}
+.item-row-emoji{font-size:36px;flex-shrink:0;line-height:1;}
+.item-row-info{flex:1;min-width:0;}
+.item-row-name{font-size:15px;font-weight:700;line-height:1.3;margin-bottom:3px;}
+.item-row-desc{font-size:12px;color:var(--text2);line-height:1.4;}
+.item-row-bottom{display:flex;align-items:center;justify-content:space-between;margin-top:8px;}
+.item-row-price{font-size:16px;font-weight:800;color:var(--accent);}
+.item-row-iva{font-size:10px;color:var(--text3);}
+.item-tag{font-size:10px;padding:2px 7px;border-radius:4px;font-weight:700;margin-top:4px;display:inline-block;}
+.tag-popular{background:#fef3c7;color:#92400e;}
+.tag-vegano{background:#d1fae5;color:#065f46;}
+.tag-nuevo{background:#dbeafe;color:#1e3a8a;}
+.add-btn{width:34px;height:34px;border-radius:50%;background:var(--accent);border:none;color:#fff;font-size:20px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;flex-shrink:0;align-self:flex-end;transition:.15s;}
+.add-btn:active{transform:scale(.9);}
+.item-qty-control{display:flex;align-items:center;gap:8px;align-self:flex-end;}
+.qty-minus{width:30px;height:30px;border-radius:50%;border:1.5px solid var(--border);background:none;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text2);}
+.qty-num{font-size:15px;font-weight:700;min-width:20px;text-align:center;}
+.qty-plus{width:30px;height:30px;border-radius:50%;background:var(--accent);border:none;color:#fff;font-size:18px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+
+/* CARRITO */
+.carrito-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;padding:12px 16px calc(12px + var(--safe-bottom));background:var(--surface);border-top:1px solid var(--border);display:none;}
+.carrito-bar.visible{display:block;}
+.carrito-btn{width:100%;padding:16px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-family:var(--font);font-size:16px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:space-between;}
+.carrito-btn-count{background:rgba(255,255,255,.25);border-radius:20px;padding:3px 10px;font-size:13px;}
+.carrito-btn-total{font-size:16px;font-weight:800;}
+
+/* MODAL CARRITO */
+.carrito-modal{position:fixed;inset:0;background:rgba(0,0,0,.5);z-index:200;display:none;align-items:flex-end;}
+.carrito-modal.open{display:flex;}
+.carrito-sheet{background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:480px;margin:0 auto;max-height:85vh;overflow-y:auto;padding-bottom:var(--safe-bottom);}
+.sheet-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;position:sticky;top:0;background:var(--surface);z-index:10;}
+.sheet-header h3{flex:1;font-size:18px;font-weight:800;}
+.close-btn{width:32px;height:32px;border-radius:50%;background:var(--bg);border:none;font-size:16px;cursor:pointer;display:flex;align-items:center;justify-content:center;}
+.carrito-items{padding:12px 20px;}
+.carrito-item{display:flex;align-items:center;gap:12px;padding:10px 0;border-bottom:1px solid var(--border);}
+.carrito-item:last-child{border-bottom:none;}
+.ci-emoji{font-size:28px;}
+.ci-name{flex:1;font-size:14px;font-weight:600;}
+.ci-qty{display:flex;align-items:center;gap:8px;}
+.ci-price{font-size:14px;font-weight:700;min-width:60px;text-align:right;}
+.carrito-nota{width:100%;border:1px solid var(--border);border-radius:8px;padding:8px 12px;font-family:var(--font);font-size:13px;color:var(--text);background:var(--bg);margin-top:6px;resize:none;}
+.carrito-nota:focus{outline:none;border-color:var(--accent);}
+.carrito-footer{padding:16px 20px;border-top:1px solid var(--border);position:sticky;bottom:0;background:var(--surface);}
+.total-row{display:flex;justify-content:space-between;align-items:center;margin-bottom:14px;}
+.total-label{font-size:14px;color:var(--text2);}
+.total-val{font-size:24px;font-weight:800;color:var(--accent);}
+.send-btn{width:100%;padding:16px;background:var(--accent2);color:#fff;border:none;border-radius:var(--radius);font-family:var(--font);font-size:16px;font-weight:700;cursor:pointer;}
+.send-btn:active{opacity:.9;}
+
+/* SUCCESS */
+.success-screen{position:fixed;inset:0;background:var(--surface);z-index:300;display:none;flex-direction:column;align-items:center;justify-content:center;padding:40px 24px;text-align:center;}
+.success-screen.show{display:flex;}
+.success-icon{font-size:72px;margin-bottom:20px;animation:bounceIn .5s ease;}
+@keyframes bounceIn{0%{transform:scale(0);}60%{transform:scale(1.15);}100%{transform:scale(1);}}
+.success-title{font-size:26px;font-weight:800;margin-bottom:10px;}
+.success-sub{font-size:15px;color:var(--text2);line-height:1.5;margin-bottom:32px;}
+.success-num{background:var(--bg);border:1px solid var(--border);border-radius:12px;padding:16px 24px;font-size:28px;font-weight:800;color:var(--accent);margin-bottom:24px;}
+.success-info{font-size:13px;color:var(--text3);line-height:1.6;}
+.new-order-btn{margin-top:24px;padding:14px 32px;background:var(--accent);color:#fff;border:none;border-radius:var(--radius);font-family:var(--font);font-size:15px;font-weight:700;cursor:pointer;}
+
+.content-padded{padding-bottom:100px;}
+</style>
+</head>
+<body>
+
+<!-- HEADER -->
+<div class="header">
+  <div class="header-top">
+    <div class="restaurant-name" id="restNombre">Restaurante</div>
+    <div class="mesa-badge" id="mesaLabel">Mesa —</div>
+  </div>
+  <div class="cats-scroll" id="catBtns"></div>
+</div>
+
+<!-- CARTA -->
+<div class="content content-padded" id="carta"></div>
+
+<!-- BARRA CARRITO -->
+<div class="carrito-bar" id="carritoBar">
+  <button class="carrito-btn" onclick="openCarrito()">
+    <span>🛒 Ver pedido <span class="carrito-btn-count" id="carritoCount">0</span></span>
+    <span class="carrito-btn-total" id="carritoBarTotal">0,00 €</span>
+  </button>
+</div>
+
+<!-- MODAL CARRITO -->
+<div class="carrito-modal" id="carritoModal" onclick="e => { if(e.target===this) closeCarrito(); }">
+  <div class="carrito-sheet">
+    <div class="sheet-header">
+      <h3>Tu pedido</h3>
+      <button class="close-btn" onclick="closeCarrito()">✕</button>
+    </div>
+    <div class="carrito-items" id="carritoItems"></div>
+    <div class="carrito-footer">
+      <div class="form-group" style="margin-bottom:14px">
+        <div style="font-size:12px;color:var(--text2);margin-bottom:6px">Nota para cocina (opcional)</div>
+        <textarea class="carrito-nota" id="notaGeneral" rows="2" placeholder="Alergias, preferencias..."></textarea>
+      </div>
+      <div class="total-row">
+        <span class="total-label">Total aproximado</span>
+        <span class="total-val" id="carritoTotal">0,00 €</span>
+      </div>
+      <button class="send-btn" onclick="enviarPedido()">✓ Enviar pedido a cocina</button>
+    </div>
+  </div>
+</div>
+
+<!-- SUCCESS -->
+<div class="success-screen" id="successScreen">
+  <div class="success-icon">🎉</div>
+  <div class="success-title">¡Pedido enviado!</div>
+  <div class="success-sub">Tu pedido ya está en camino a cocina.<br>El personal te atenderá en breve.</div>
+  <div class="success-num" id="successNum">#—</div>
+  <div class="success-info">Puedes seguir añadiendo productos<br>si lo necesitas</div>
+  <button class="new-order-btn" onclick="resetOrden()">+ Añadir más</button>
+</div>
+
+<script>
+'use strict';
+
+// ─── SUPABASE ───
+const SUPA_URL = 'https://seomuaorrpowiahhniap.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNlb211YW9ycnBvd2lhaGhuaWFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NTg5MTksImV4cCI6MjA4OTUzNDkxOX0.plE0bONF4z3YLvuNGCxRea09lNOGOh3KMN2jOndVJ8E';
+const HDR = { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+
+async function sbSel(table, qs = '') {
+  const r = await fetch(`${SUPA_URL}/rest/v1/${table}?${qs}`, { headers: HDR });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+async function sbIns(table, body) {
+  const r = await fetch(`${SUPA_URL}/rest/v1/${table}`, { method: 'POST', headers: HDR, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+async function sbUpd(table, match, body) {
+  const qs = Object.entries(match).map(([k,v]) => `${k}=eq.${encodeURIComponent(v)}`).join('&');
+  const r = await fetch(`${SUPA_URL}/rest/v1/${table}?${qs}`, { method: 'PATCH', headers: HDR, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+// ─── STATE ───
+let carrito = {};      // { itemId: { item, qty, nota } }
+let mesaNum  = '';
+let mesaId   = null;   // UUID de la mesa en Supabase
+let carta    = [];     // productos cargados de Supabase
+let cats     = [];     // categorías
+let cfg      = {};     // config del restaurante
+let pedidoExistenteId = null; // si ya hay pedido abierto para esta mesa
+
+// ─── UTIL ───
+function getParam(name) { return new URLSearchParams(window.location.search).get(name) || ''; }
+function haptic() { try { navigator.vibrate(10); } catch(_) {} }
+function showLoader(on) {
+  let el = document.getElementById('qrLoader');
+  if (!el) {
+    el = document.createElement('div');
+    el.id = 'qrLoader';
+    el.style.cssText = 'position:fixed;inset:0;background:rgba(250,250,248,.85);z-index:999;display:flex;align-items:center;justify-content:center;font-size:14px;color:var(--text2)';
+    el.innerHTML = '<div>Cargando carta…</div>';
+    document.body.appendChild(el);
+  }
+  el.style.display = on ? 'flex' : 'none';
+}
+
+// ─── INIT ───
+async function init() {
+  mesaNum = getParam('mesa') || '1';
+  showLoader(true);
+  try {
+    // Cargar todo en paralelo
+    const [cfgArr, zonas, mesas, catsArr, cartaArr] = await Promise.all([
+      sbSel('pos_config', 'id=eq.1'),
+      sbSel('pos_zonas',  'order=orden.asc'),
+      sbSel('pos_mesas',  'activa=eq.true&order=num.asc'),
+      sbSel('pos_cats',   'activa=eq.true&order=orden.asc'),
+      sbSel('pos_carta',  'active=eq.true&order=orden.asc,name.asc'),
+    ]);
+
+    cfg   = cfgArr[0] || {};
+    cats  = catsArr;
+    carta = cartaArr;
+
+    // Encontrar la mesa por número
+    const mesa = mesas.find(m => String(m.num) === String(mesaNum));
+    if (mesa) {
+      mesaId = mesa.id;
+      // Buscar pedido abierto existente para esta mesa
+      const pedidos = await sbSel('pos_pedidos',
+        `mesa_id=eq.${mesaId}&estado=in.(abierto,en-cocina)&order=created_at.desc&limit=1`
+      );
+      pedidoExistenteId = pedidos[0]?.id || null;
+    }
+
+    // Setear UI del restaurante
+    document.getElementById('restNombre').textContent = cfg.nombre || 'Restaurante';
+    document.getElementById('mesaLabel').textContent  = 'Mesa ' + mesaNum;
+    document.title = (cfg.nombre || 'Carta') + ' — Mesa ' + mesaNum;
+
+    renderCarta();
+  } catch(e) {
+    document.getElementById('carta').innerHTML = `
+      <div style="text-align:center;padding:60px 20px;color:var(--text3)">
+        <div style="font-size:48px;margin-bottom:16px">⚠️</div>
+        <div style="font-size:16px;font-weight:600">No se pudo cargar la carta</div>
+        <div style="font-size:13px;margin-top:8px;color:var(--text3)">${e.message}</div>
+        <button onclick="location.reload()" style="margin-top:20px;padding:10px 24px;background:var(--accent);color:#fff;border:none;border-radius:10px;font-size:14px;font-weight:600;cursor:pointer">Reintentar</button>
+      </div>`;
+  } finally {
+    showLoader(false);
+  }
+}
+
+// ─── RENDER CARTA ───
+function renderCarta() {
+  if (!carta.length) {
+    document.getElementById('carta').innerHTML = `
+      <div style="text-align:center;padding:60px 20px;color:var(--text3)">
+        <div style="font-size:48px;margin-bottom:16px">🍽️</div>
+        <div style="font-size:16px;font-weight:600">Carta no disponible</div>
+        <div style="font-size:13px;margin-top:8px">Pide al personal que te atienda</div>
+      </div>`;
+    return;
+  }
+
+  // Pills de categorías
+  document.getElementById('catBtns').innerHTML =
+    `<button class="cat-btn active" onclick="scrollCat('all',this)">Todo</button>` +
+    cats.map(c => `<button class="cat-btn" onclick="scrollCat('${c.id}',this)">${c.emoji||''} ${c.nombre}</button>`).join('');
+
+  // Carta agrupada por categoría
+  document.getElementById('carta').innerHTML = cats.map(cat => {
+    const items = carta.filter(i => i.cat_id === cat.id);
+    if (!items.length) return '';
+    return `
+      <div class="cat-section" data-cat="${cat.id}">
+        <div class="cat-title">${cat.emoji||''} ${cat.nombre}</div>
+        ${items.map(item => renderItemRow(item)).join('')}
+      </div>`;
+  }).join('');
+}
+
+function renderItemRow(item) {
+  const qty = carrito[item.id]?.qty || 0;
+  const tagMap = { popular:'⭐ Popular', vegano:'🌱 Vegano', nuevo:'🆕 Nuevo' };
+  return `
+    <div class="item-row" id="ir_${item.id}">
+      <div style="font-size:36px;flex-shrink:0;line-height:1">${item.emoji}</div>
+      <div class="item-row-info">
+        <div class="item-row-name">${item.name}</div>
+        ${item.descripcion ? `<div class="item-row-desc">${item.descripcion}</div>` : ''}
+        ${item.tag ? `<span class="item-tag tag-${item.tag}">${tagMap[item.tag]||item.tag}</span>` : ''}
+        <div class="item-row-bottom">
+          <div>
+            <span class="item-row-price">${item.price > 0 ? Number(item.price).toFixed(2) + ' €' : 'Incluido'}</span>
+            <span class="item-row-iva"> IVA ${item.iva}%</span>
+          </div>
+          ${qty === 0
+            ? `<button class="add-btn" onclick="addItem('${item.id}')">+</button>`
+            : `<div class="item-qty-control">
+                <button class="qty-minus" onclick="changeItem('${item.id}',-1)">−</button>
+                <span class="qty-num">${qty}</span>
+                <button class="qty-plus" onclick="changeItem('${item.id}',1)">+</button>
+              </div>`}
+        </div>
+      </div>
+    </div>`;
+}
+
+// ─── CARRITO LOGIC ───
+function addItem(id) {
+  const item = carta.find(i => i.id === id);
+  if (!item) return;
+  if (carrito[id]) carrito[id].qty++;
+  else carrito[id] = { item, qty: 1, nota: '' };
+  refreshItem(id);
+  updateCarritoBar();
+  haptic();
+}
+
+function changeItem(id, d) {
+  if (!carrito[id]) return;
+  carrito[id].qty += d;
+  if (carrito[id].qty <= 0) delete carrito[id];
+  refreshItem(id);
+  updateCarritoBar();
+}
+
+function refreshItem(id) {
+  const item = carta.find(i => i.id === id);
+  if (!item) return;
+  const el = document.getElementById('ir_' + id);
+  if (el) el.outerHTML = renderItemRow(item);
+}
+
+function scrollCat(catId, btn) {
+  document.querySelectorAll('.cat-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  if (catId === 'all') { window.scrollTo({ top: 0, behavior: 'smooth' }); return; }
+  const el = document.querySelector(`[data-cat="${catId}"]`);
+  if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+}
+
+function updateCarritoBar() {
+  const count = Object.values(carrito).reduce((s, v) => s + v.qty, 0);
+  const total = Object.values(carrito).reduce((s, v) => s + v.item.price * v.qty, 0);
+  document.getElementById('carritoCount').textContent    = count;
+  document.getElementById('carritoBarTotal').textContent = total.toFixed(2) + ' €';
+  document.getElementById('carritoBar').classList.toggle('visible', count > 0);
+}
+
+function openCarrito() {
+  renderCarritoItems();
+  document.getElementById('carritoModal').classList.add('open');
+}
+function closeCarrito() { document.getElementById('carritoModal').classList.remove('open'); }
+
+function renderCarritoItems() {
+  const items = Object.entries(carrito);
+  const total = items.reduce((s, [, v]) => s + v.item.price * v.qty, 0);
+  document.getElementById('carritoItems').innerHTML = items.map(([id, { item, qty, nota }]) => `
+    <div class="carrito-item">
+      <span class="ci-emoji">${item.emoji}</span>
+      <span class="ci-name">${item.name}</span>
+      <div class="ci-qty">
+        <button class="qty-minus" onclick="changeItemCarrito('${id}',-1)">−</button>
+        <span class="qty-num">${qty}</span>
+        <button class="qty-plus" onclick="changeItemCarrito('${id}',1)">+</button>
+      </div>
+      <span class="ci-price">${(item.price * qty).toFixed(2)} €</span>
+    </div>
+    <textarea class="carrito-nota" placeholder="Nota para este plato…" onchange="setNota('${id}',this.value)">${nota}</textarea>
+  `).join('');
+  document.getElementById('carritoTotal').textContent = total.toFixed(2) + ' €';
+}
+
+function changeItemCarrito(id, d) {
+  if (!carrito[id]) return;
+  carrito[id].qty += d;
+  if (carrito[id].qty <= 0) delete carrito[id];
+  updateCarritoBar();
+  refreshItem(id);
+  if (!Object.keys(carrito).length) { closeCarrito(); return; }
+  renderCarritoItems();
+}
+
+function setNota(id, v) { if (carrito[id]) carrito[id].nota = v; }
+
+// ─── ENVIAR PEDIDO A SUPABASE ───
+async function enviarPedido() {
+  if (!Object.keys(carrito).length) return;
+
+  if (!mesaId) {
+    alert('Mesa no encontrada en el sistema. Pide al personal que te atienda.');
+    return;
+  }
+
+  const btnEnviar = document.querySelector('.send-btn');
+  if (btnEnviar) { btnEnviar.disabled = true; btnEnviar.textContent = 'Enviando…'; }
+
+  try {
+    const notaGeneral = document.getElementById('notaGeneral').value.trim();
+
+    // Construir array de items en el formato de Supabase
+    const nuevosItems = Object.values(carrito).map(({ item, qty, nota }) => ({
+      id:    item.id,
+      name:  item.name,
+      emoji: item.emoji,
+      price: Number(item.price),
+      iva:   item.iva,
+      qty,
+      nota:  nota || ''
+    }));
+
+    if (pedidoExistenteId) {
+      // Hay pedido abierto → MERGE de items
+      const pedidos = await sbSel('pos_pedidos', `id=eq.${pedidoExistenteId}`);
+      const existingItems = pedidos[0]?.items || [];
+
+      // Mergear: si el mismo producto ya existe sumar qty, si no añadir
+      const mergedMap = {};
+      existingItems.forEach(i => { mergedMap[i.id] = { ...i }; });
+      nuevosItems.forEach(i => {
+        if (mergedMap[i.id]) mergedMap[i.id].qty += i.qty;
+        else mergedMap[i.id] = { ...i };
+      });
+      const mergedItems = Object.values(mergedMap);
+
+      await sbUpd('pos_pedidos', { id: pedidoExistenteId }, {
+        items:   mergedItems,
+        estado:  'en-cocina',
+        nota:    notaGeneral || pedidos[0]?.nota || '',
+      });
+    } else {
+      // Pedido nuevo
+      const row = {
+        id:       'qr' + Date.now(),
+        mesa_id:  mesaId,
+        mesa_num: parseInt(mesaNum),
+        items:    nuevosItems,
+        estado:   'en-cocina',
+        nota:     notaGeneral,
+      };
+      const res = await sbIns('pos_pedidos', row);
+      pedidoExistenteId = res[0]?.id || row.id;
+    }
+
+    // Número de pedido para la pantalla de éxito
+    const numStr = '#' + String(Date.now()).slice(-4).padStart(4, '0');
+    closeCarrito();
+    document.getElementById('successNum').textContent = numStr;
+    document.getElementById('successScreen').classList.add('show');
+
+  } catch(e) {
+    alert('Error al enviar el pedido: ' + e.message + '\nInténtalo de nuevo.');
+  } finally {
+    if (btnEnviar) { btnEnviar.disabled = false; btnEnviar.textContent = '✓ Enviar pedido a cocina'; }
+  }
+}
+
+// ─── RESET (añadir más productos) ───
+function resetOrden() {
+  document.getElementById('successScreen').classList.remove('show');
+  carrito = {};
+  updateCarritoBar();
+  renderCarta();
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+// ─── ARRANCAR ───
+init();
+</script>
+</body>
+</html>

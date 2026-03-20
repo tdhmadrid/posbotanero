@@ -1,0 +1,494 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>KDS — Cocina</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700;800&family=DM+Mono:wght@500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface2: #1e1e1e;
+  --border: #2a2a2a;
+  --text: #f5f5f5;
+  --text2: #888;
+  --green: #22c55e;
+  --amber: #f59e0b;
+  --red: #ef4444;
+  --blue: #3b82f6;
+  --radius: 12px;
+  --font: 'DM Sans', sans-serif;
+  --mono: 'DM Mono', monospace;
+}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;display:flex;flex-direction:column;overflow:hidden;}
+
+.kds-header{height:60px;background:var(--surface);border-bottom:2px solid var(--border);display:flex;align-items:center;padding:0 20px;gap:16px;flex-shrink:0;}
+.kds-logo{font-size:18px;font-weight:800;color:var(--amber);letter-spacing:-0.5px;}
+.kds-logo span{color:var(--text2);font-weight:400;}
+.kds-status{display:flex;align-items:center;gap:8px;margin-left:auto;}
+.status-dot{width:10px;height:10px;border-radius:50%;background:var(--green);animation:pulse 2s infinite;}
+@keyframes pulse{0%,100%{opacity:1;}50%{opacity:.4;}}
+.kds-time{font-family:var(--mono);font-size:15px;color:var(--amber);}
+.pending-count{background:var(--red);color:#fff;border-radius:20px;padding:3px 10px;font-size:13px;font-weight:700;}
+
+.kds-body{flex:1;overflow:auto;padding:16px;display:grid;grid-template-columns:repeat(auto-fill,minmax(280px,1fr));gap:14px;align-content:start;}
+
+.ticket-card{background:var(--surface);border:2px solid var(--border);border-radius:var(--radius);overflow:hidden;display:flex;flex-direction:column;transition:.2s;}
+.ticket-card.urgente{border-color:var(--red);box-shadow:0 0 20px rgba(239,68,68,.2);}
+.ticket-card.espera{border-color:var(--amber);}
+.ticket-card.nuevo{border-color:var(--blue);animation:newOrder .5s ease;}
+@keyframes newOrder{0%{transform:scale(.95);opacity:0;}100%{transform:scale(1);opacity:1;}}
+
+.ticket-top{padding:12px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;}
+.ticket-mesa{font-size:22px;font-weight:800;color:var(--amber);}
+.ticket-meta{flex:1;}
+.ticket-meta-label{font-size:12px;color:var(--text2);}
+.ticket-tiempo{font-family:var(--mono);font-size:13px;font-weight:700;}
+.ticket-tiempo.ok{color:var(--green);}
+.ticket-tiempo.warn{color:var(--amber);}
+.ticket-tiempo.late{color:var(--red);}
+.ticket-badge{padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;}
+.badge-nuevo{background:rgba(59,130,246,.2);color:var(--blue);}
+.badge-en-curso{background:rgba(245,158,11,.2);color:var(--amber);}
+.badge-listo{background:rgba(34,197,94,.2);color:var(--green);}
+
+.ticket-items{padding:12px 14px;flex:1;}
+.ticket-item{display:flex;align-items:flex-start;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);}
+.ticket-item:last-child{border-bottom:none;}
+.item-qty{width:32px;height:32px;border-radius:8px;background:var(--surface2);display:flex;align-items:center;justify-content:center;font-weight:800;font-size:16px;color:var(--amber);flex-shrink:0;}
+.item-info{flex:1;}
+.item-name-kds{font-size:15px;font-weight:600;line-height:1.3;}
+.item-nota-kds{font-size:12px;color:var(--amber);margin-top:3px;background:rgba(245,158,11,.08);padding:3px 8px;border-radius:4px;border-left:2px solid var(--amber);}
+.item-done{width:28px;height:28px;border-radius:6px;border:2px solid var(--border);cursor:pointer;display:flex;align-items:center;justify-content:center;font-size:14px;transition:.15s;flex-shrink:0;background:none;color:var(--text2);}
+.item-done:hover{border-color:var(--green);color:var(--green);}
+.item-done.checked{background:var(--green);border-color:var(--green);color:#fff;}
+
+.ticket-footer{padding:10px 14px;border-top:1px solid var(--border);display:flex;gap:8px;}
+.kds-btn{flex:1;padding:10px;border-radius:8px;border:none;font-family:var(--font);font-size:13px;font-weight:600;cursor:pointer;transition:.15s;}
+.kds-btn-start{background:rgba(245,158,11,.15);color:var(--amber);}
+.kds-btn-start:hover{background:rgba(245,158,11,.3);}
+.kds-btn-done{background:var(--green);color:#fff;}
+.kds-btn-done:hover{opacity:.85;}
+.kds-btn-cancel{background:var(--surface2);color:var(--text2);border:1px solid var(--border);}
+.kds-btn-cancel:hover{color:var(--text);}
+
+.kds-empty{grid-column:1/-1;text-align:center;padding:80px 20px;color:var(--text2);}
+.kds-empty-icon{font-size:60px;margin-bottom:16px;}
+.kds-empty-title{font-size:20px;font-weight:700;margin-bottom:8px;color:var(--text);}
+
+.kds-filter{display:flex;gap:8px;padding:12px 16px;background:var(--surface);border-bottom:1px solid var(--border);flex-shrink:0;}
+.kds-filter-btn{padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:none;color:var(--text2);font-size:12px;font-weight:600;cursor:pointer;font-family:var(--font);transition:.15s;}
+.kds-filter-btn.active{background:var(--amber);color:#000;border-color:var(--amber);}
+.kds-filter-btn:hover:not(.active){border-color:var(--text2);color:var(--text);}
+
+/* DONE ORDERS */
+.done-list{position:fixed;right:0;top:60px;bottom:0;width:280px;background:var(--surface);border-left:1px solid var(--border);transform:translateX(100%);transition:.3s;overflow-y:auto;z-index:100;}
+.done-list.open{transform:translateX(0);}
+.done-list-header{padding:14px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;}
+.done-list-header h3{flex:1;font-size:14px;font-weight:600;}
+.done-item{padding:12px 16px;border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;font-size:13px;}
+.done-mesa{font-weight:700;color:var(--green);}
+.done-time{font-size:11px;color:var(--text2);margin-left:auto;}
+
+::-webkit-scrollbar{width:5px;}
+::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:3px;}
+</style>
+</head>
+<body>
+
+<div class="kds-header">
+  <div class="kds-logo">KDS <span>Cocina</span></div>
+  <div class="kds-status">
+    <div class="status-dot" id="connDot"></div>
+    <span style="font-size:12px;color:var(--text2)" id="connLabel">Conectado</span>
+    <span class="pending-count" id="pendingCount">0</span>
+    <span style="font-size:12px;color:var(--text2)">pendientes</span>
+  </div>
+  <button onclick="toggleDoneList()" style="background:none;border:1px solid var(--border);color:var(--text2);padding:6px 12px;border-radius:8px;cursor:pointer;font-size:12px;font-family:var(--font)">✓ Completados</button>
+  <div class="kds-time" id="kdsTime">00:00</div>
+</div>
+
+<div class="kds-filter">
+  <button class="kds-filter-btn active" onclick="setFilter('todos',this)">Todos</button>
+  <button class="kds-filter-btn" onclick="setFilter('nuevo',this)">🔵 Nuevos</button>
+  <button class="kds-filter-btn" onclick="setFilter('en-curso',this)">🟡 En curso</button>
+  <button class="kds-filter-btn" onclick="setFilter('listo',this)">🟢 Listos</button>
+</div>
+
+<div class="kds-body" id="kdsBody"></div>
+
+<div class="done-list" id="doneList">
+  <div class="done-list-header">
+    <h3>✅ Completados hoy</h3>
+    <button onclick="toggleDoneList()" style="background:none;border:none;color:var(--text2);cursor:pointer;font-size:16px">✕</button>
+  </div>
+  <div id="doneListBody"></div>
+</div>
+
+<script>
+'use strict';
+
+// ─── SUPABASE ───
+const SUPA_URL = 'https://seomuaorrpowiahhniap.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNlb211YW9ycnBvd2lhaGhuaWFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NTg5MTksImV4cCI6MjA4OTUzNDkxOX0.plE0bONF4z3YLvuNGCxRea09lNOGOh3KMN2jOndVJ8E';
+const HDR = { 'apikey': SUPA_KEY, 'Authorization': 'Bearer ' + SUPA_KEY, 'Content-Type': 'application/json', 'Prefer': 'return=representation' };
+
+async function sbSel(table, qs = '') {
+  const r = await fetch(`${SUPA_URL}/rest/v1/${table}?${qs}`, { headers: HDR });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+async function sbUpd(table, match, body) {
+  const qs = Object.entries(match).map(([k,v]) => `${k}=eq.${encodeURIComponent(v)}`).join('&');
+  const r = await fetch(`${SUPA_URL}/rest/v1/${table}?${qs}`, { method: 'PATCH', headers: HDR, body: JSON.stringify(body) });
+  if (!r.ok) throw new Error(await r.text());
+  return r.json();
+}
+
+// ─── STATE ───
+// kdsOrders: { pedidoId: { id, mesaNum, items, estado, ts, itemsDone:{} } }
+let kdsOrders = {};
+let doneOrders = [];
+let currentFilter = 'todos';
+let wsReady = false;
+
+// ─── REALTIME via WebSocket ───
+function initRealtime() {
+  const wsUrl = `wss://seomuaorrpowiahhniap.supabase.co/realtime/v1/websocket?apikey=${SUPA_KEY}&vsn=1.0.0`;
+  let ws;
+
+  function connect() {
+    ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      wsReady = true;
+      // Suscribirse a cambios en pos_pedidos
+      ws.send(JSON.stringify({
+        topic: 'realtime:public:pos_pedidos',
+        event: 'phx_join',
+        payload: {
+          config: {
+            broadcast: { self: true },
+            postgres_changes: [{ event: '*', schema: 'public', table: 'pos_pedidos' }]
+          }
+        },
+        ref: '1'
+      }));
+      setConnStatus(true);
+    };
+
+    ws.onmessage = e => {
+      try {
+        const msg = JSON.parse(e.data);
+        // Heartbeat reply
+        if (msg.event === 'phx_reply' && msg.ref === '1') return;
+        if (msg.event === 'heartbeat') {
+          ws.send(JSON.stringify({ topic: 'phoenix', event: 'heartbeat', payload: {}, ref: 'hb' }));
+          return;
+        }
+        // Cambio en pos_pedidos
+        if (msg.event === 'postgres_changes' || msg.payload?.data?.table === 'pos_pedidos') {
+          const record = msg.payload?.data?.record || msg.payload?.record;
+          if (record) {
+            mergeIncomingPedido(record);
+          } else {
+            loadPedidos(); // fallback: recarga completa
+          }
+        }
+      } catch (_) {}
+    };
+
+    ws.onclose = () => {
+      wsReady = false;
+      setConnStatus(false);
+      // Reconectar en 4 segundos
+      setTimeout(connect, 4000);
+    };
+
+    ws.onerror = () => {
+      setConnStatus(false);
+    };
+  }
+
+  connect();
+}
+
+function setConnStatus(ok) {
+  document.getElementById('connDot').style.background = ok ? '#22c55e' : '#f59e0b';
+  document.getElementById('connLabel').textContent = ok ? 'Tiempo real' : 'Reconectando…';
+}
+
+// ─── MERGE INCOMING PEDIDO (Realtime delta) ───
+function mergeIncomingPedido(record) {
+  const id = record.id;
+
+  if (!record || record.estado === 'pagado' || record.estado === 'cancelado') {
+    // Pedido cerrado → mover a done si estaba en pantalla
+    if (kdsOrders[id]) {
+      doneOrders.unshift({
+        ...kdsOrders[id],
+        donAt: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+      });
+      delete kdsOrders[id];
+    }
+    renderKDS();
+    return;
+  }
+
+  if (record.estado === 'abierto') return; // No mostrar en KDS hasta que se envíe
+
+  if (kdsOrders[id]) {
+    // Actualizar items si cambiaron, pero conservar estado local y itemsDone
+    kdsOrders[id].items   = record.items || kdsOrders[id].items;
+    kdsOrders[id].mesaNum = record.mesa_num || kdsOrders[id].mesaNum;
+    // Si el TPV cambió el estado a 'en-cocina', respetar solo si no hay progreso local
+    if (record.estado === 'en-cocina' && kdsOrders[id].status === 'entregado') return;
+    if (record.estado === 'listo') kdsOrders[id].status = 'listo';
+  } else {
+    // Nuevo pedido entrante
+    kdsOrders[id] = {
+      id,
+      mesaNum:   record.mesa_num || '?',
+      items:     record.items || [],
+      estado:    record.estado,
+      ts:        new Date(record.created_at || Date.now()).getTime(),
+      status:    record.estado === 'en-cocina' ? 'nuevo' : record.estado,
+      itemsDone: {}
+    };
+    // Notificación sonora suave
+    try { new Audio('data:audio/wav;base64,UklGRiQAAABXQVZFZm10IBAAAAABAAEARKwAAIhYAQACABAAZGF0YQAAAAA=').play().catch(()=>{}); } catch(_) {}
+  }
+
+  renderKDS();
+  updatePendingCount();
+}
+
+// ─── CARGA INICIAL ───
+async function loadPedidos() {
+  try {
+    const pedidos = await sbSel('pos_pedidos',
+      'estado=in.(en-cocina,listo)&order=created_at.asc'
+    );
+
+    // Merge: añadir nuevos, actualizar existentes, quitar los que ya no están
+    const incomingIds = new Set(pedidos.map(p => p.id));
+
+    // Eliminar los que ya no existen como activos
+    Object.keys(kdsOrders).forEach(id => {
+      if (!incomingIds.has(id)) {
+        doneOrders.unshift({
+          ...kdsOrders[id],
+          donAt: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+        });
+        delete kdsOrders[id];
+      }
+    });
+
+    // Añadir/actualizar
+    pedidos.forEach(p => {
+      if (!kdsOrders[p.id]) {
+        kdsOrders[p.id] = {
+          id:        p.id,
+          mesaNum:   p.mesa_num || '?',
+          items:     p.items || [],
+          estado:    p.estado,
+          ts:        new Date(p.created_at).getTime(),
+          status:    p.estado === 'en-cocina' ? 'nuevo' : p.estado,
+          itemsDone: {}
+        };
+      } else {
+        // Solo actualizar items si no hay progreso local
+        kdsOrders[p.id].items   = p.items || kdsOrders[p.id].items;
+        kdsOrders[p.id].mesaNum = p.mesa_num || kdsOrders[p.id].mesaNum;
+      }
+    });
+
+    renderKDS();
+    updatePendingCount();
+  } catch(e) {
+    console.error('Error cargando pedidos:', e);
+    setConnStatus(false);
+  }
+}
+
+// ─── RENDER KDS ───
+function renderKDS() {
+  const orders = Object.values(kdsOrders);
+  const filtered = currentFilter === 'todos'
+    ? orders
+    : orders.filter(o => o.status === currentFilter);
+
+  if (!filtered.length) {
+    document.getElementById('kdsBody').innerHTML = `
+      <div class="kds-empty">
+        <div class="kds-empty-icon">🍳</div>
+        <div class="kds-empty-title">Sin pedidos activos</div>
+        <div>Los nuevos pedidos llegan automáticamente</div>
+      </div>`;
+    return;
+  }
+
+  // Más urgentes primero (más tiempo esperando = primero)
+  filtered.sort((a, b) => a.ts - b.ts);
+
+  document.getElementById('kdsBody').innerHTML = filtered.map(o => {
+    const mins = Math.floor((Date.now() - o.ts) / 60000);
+    const timerClass = mins < 10 ? 'ok' : mins < 20 ? 'warn' : 'late';
+    const cardClass  = mins >= 20 ? 'urgente' : mins >= 10 ? 'espera' : 'nuevo';
+    const statusBadge = { nuevo:'badge-nuevo', 'en-curso':'badge-en-curso', listo:'badge-listo' }[o.status] || 'badge-nuevo';
+    const statusText  = { nuevo:'Nuevo', 'en-curso':'En curso', listo:'Listo' }[o.status] || '—';
+
+    const itemsArr  = Array.isArray(o.items) ? o.items : Object.values(o.items || {});
+    const doneCount = Object.values(o.itemsDone).filter(Boolean).length;
+    const total     = itemsArr.length;
+
+    return `
+      <div class="ticket-card ${cardClass}" id="card_${o.id}">
+        <div class="ticket-top">
+          <div class="ticket-mesa">M${o.mesaNum}</div>
+          <div class="ticket-meta">
+            <div class="ticket-meta-label">${total} producto${total !== 1 ? 's' : ''} · ${doneCount}/${total} listos</div>
+            <div class="ticket-tiempo ${timerClass}">⏱ ${mins}m</div>
+          </div>
+          <span class="ticket-badge ${statusBadge}">${statusText}</span>
+        </div>
+        <div class="ticket-items">
+          ${itemsArr.map(item => {
+            const kid = item.id || item.name;
+            const done = !!o.itemsDone[kid];
+            return `
+              <div class="ticket-item">
+                <div class="item-qty">${item.qty}</div>
+                <div class="item-info">
+                  <div class="item-name-kds" style="${done ? 'text-decoration:line-through;opacity:.35' : ''}">${item.name}</div>
+                  ${item.nota ? `<div class="item-nota-kds">📝 ${item.nota}</div>` : ''}
+                </div>
+                <button class="item-done ${done ? 'checked' : ''}" onclick="toggleItemDone('${o.id}','${kid}')">
+                  ${done ? '✓' : ''}
+                </button>
+              </div>`;
+          }).join('')}
+        </div>
+        <div class="ticket-footer">
+          ${o.status === 'nuevo'    ? `<button class="kds-btn kds-btn-start"   onclick="startOrder('${o.id}')">▶ Iniciar</button>` : ''}
+          ${o.status === 'en-curso' ? `<button class="kds-btn kds-btn-done"    onclick="doneOrder('${o.id}')">✓ Listo para servir</button>` : ''}
+          ${o.status === 'listo'    ? `<button class="kds-btn kds-btn-cancel"  onclick="deliverOrder('${o.id}')">🍽 Entregado</button>` : ''}
+          <button class="kds-btn kds-btn-cancel" onclick="cancelFromKDS('${o.id}')" style="flex:0;padding:10px 12px">✕</button>
+        </div>
+      </div>`;
+  }).join('');
+}
+
+function updatePendingCount() {
+  const n = Object.values(kdsOrders).filter(o => o.status !== 'entregado').length;
+  document.getElementById('pendingCount').textContent = n;
+}
+
+// ─── ACCIONES DE PEDIDO ───
+async function startOrder(oid) {
+  kdsOrders[oid].status = 'en-curso';
+  renderKDS();
+  // Reflejar en Supabase (no crítico, no bloquear UI)
+  sbUpd('pos_pedidos', { id: oid }, { estado: 'en-cocina' }).catch(() => {});
+}
+
+async function doneOrder(oid) {
+  kdsOrders[oid].status = 'listo';
+  renderKDS();
+  try {
+    await sbUpd('pos_pedidos', { id: oid }, { estado: 'listo' });
+  } catch(e) { console.error(e); }
+}
+
+async function deliverOrder(oid) {
+  if (!kdsOrders[oid]) return;
+  doneOrders.unshift({
+    ...kdsOrders[oid],
+    donAt: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+  });
+  delete kdsOrders[oid];
+  renderKDS();
+  updatePendingCount();
+  renderDoneList();
+}
+
+function cancelFromKDS(oid) {
+  if (!confirm('¿Quitar este pedido de la pantalla?')) return;
+  doneOrders.unshift({
+    ...kdsOrders[oid],
+    donAt: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
+  });
+  delete kdsOrders[oid];
+  renderKDS();
+  updatePendingCount();
+}
+
+function toggleItemDone(oid, kid) {
+  if (!kdsOrders[oid]) return;
+  kdsOrders[oid].itemsDone[kid] = !kdsOrders[oid].itemsDone[kid];
+
+  // Auto-avanzar a "listo" si todos los platos están marcados
+  const itemsArr = Array.isArray(kdsOrders[oid].items) ? kdsOrders[oid].items : Object.values(kdsOrders[oid].items || {});
+  const total  = itemsArr.length;
+  const done   = Object.values(kdsOrders[oid].itemsDone).filter(Boolean).length;
+  if (done === total && kdsOrders[oid].status === 'en-curso') {
+    doneOrder(oid);
+    return;
+  }
+  renderKDS();
+}
+
+// ─── FILTROS ───
+function setFilter(f, btn) {
+  currentFilter = f;
+  document.querySelectorAll('.kds-filter-btn').forEach(b => b.classList.remove('active'));
+  btn.classList.add('active');
+  renderKDS();
+}
+
+// ─── DONE LIST ───
+function toggleDoneList() {
+  renderDoneList();
+  document.getElementById('doneList').classList.toggle('open');
+}
+function renderDoneList() {
+  document.getElementById('doneListBody').innerHTML = doneOrders.slice(0, 30).map(o => `
+    <div class="done-item">
+      <span class="done-mesa">M${o.mesaNum}</span>
+      <span>${Array.isArray(o.items) ? o.items.length : Object.keys(o.items||{}).length} items</span>
+      <span class="done-time">${o.donAt || '—'}</span>
+    </div>`).join('') || '<div style="padding:16px;color:var(--text2);font-size:13px">Sin completados aún</div>';
+}
+
+// ─── RELOJ ───
+function updateTime() {
+  document.getElementById('kdsTime').textContent =
+    new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' });
+}
+
+// ─── BOOT ───
+async function initKDS() {
+  updateTime();
+  setInterval(updateTime, 10000);
+  setConnStatus(false);
+
+  // 1. Carga inicial
+  await loadPedidos();
+
+  // 2. Realtime WebSocket
+  initRealtime();
+
+  // 3. Polling de respaldo cada 20s (por si el WS falla)
+  setInterval(loadPedidos, 20000);
+
+  // 4. Re-render de timers cada 30s
+  setInterval(renderKDS, 30000);
+}
+
+initKDS();
+</script>
+</body>
+</html>
