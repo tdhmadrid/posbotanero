@@ -409,6 +409,37 @@ input,select,textarea{font-family:var(--fb);}
   </div>
 </div>
 
+<!-- MODAL ABRIR MESA -->
+<div class="movl" id="mAbrirMesa">
+  <div class="msheet" style="max-width:340px">
+    <div class="msheet-h">
+      <h3 id="mAbrirTitle">Abrir mesa</h3>
+      <button class="close-btn" onclick="closeM('mAbrirMesa')">&#x2715;</button>
+    </div>
+    <div class="msheet-b">
+      <div style="text-align:center;font-size:44px;margin-bottom:8px" id="mAbrirIcon">&#x1FA91;</div>
+      <div style="text-align:center;font-size:18px;font-weight:700;margin-bottom:4px" id="mAbrirMesaNum">Mesa —</div>
+      <div style="text-align:center;font-size:12px;color:var(--t3);margin-bottom:20px" id="mAbrirZona"></div>
+      <div style="font-size:12px;color:var(--t2);font-weight:600;margin-bottom:10px;text-align:center">N&#xFA;MERO DE COMENSALES</div>
+      <div style="display:flex;align-items:center;justify-content:center;gap:16px;margin-bottom:16px">
+        <button class="qb" onclick="cambiarComensales(-1)" style="width:36px;height:36px;font-size:20px">&#x2212;</button>
+        <span id="comensalesNum" style="font-size:32px;font-weight:700;min-width:40px;text-align:center">2</span>
+        <button class="qb" onclick="cambiarComensales(1)" style="width:36px;height:36px;font-size:20px">+</button>
+      </div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:16px">
+        <button class="btn btn-ghost btn-sm" onclick="setComensales(1)" style="justify-content:center">1</button>
+        <button class="btn btn-ghost btn-sm" onclick="setComensales(2)" style="justify-content:center">2</button>
+        <button class="btn btn-ghost btn-sm" onclick="setComensales(4)" style="justify-content:center">4</button>
+        <button class="btn btn-ghost btn-sm" onclick="setComensales(6)" style="justify-content:center">6</button>
+      </div>
+    </div>
+    <div class="mactions">
+      <button class="btn btn-ghost" onclick="closeM('mAbrirMesa')">Cancelar</button>
+      <button class="btn btn-primary" onclick="confirmarAbrirMesa()" style="flex:1;justify-content:center;padding:11px">&#x1F513; Abrir mesa</button>
+    </div>
+  </div>
+</div>
+
 <div id="ticketPrint"></div>
 <div id="ta"></div>
 <div id="loader"><span>Cargando&hellip;</span></div>
