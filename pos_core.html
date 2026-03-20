@@ -1003,315 +1003,292 @@ function openKDSInfo() { openM('mKDS'); }
 // MÓDULO CAJA — Apertura y cierre con informe de ventas
 // ═══════════════════════════════════════════════════
 
-// Estado de caja en memoria
-let cajaAbierta = null; // { id, fondo_inicial, created_at, user_id }
+let cajaAbierta = null;
 
-// ─── NAV: incluir caja en applyRoleRestrictions ───
-// (parche: se ejecuta después de psub)
+// Parche applyRoleRestrictions para incluir tab caja
 const _origApplyRole = applyRoleRestrictions;
 function applyRoleRestrictions() {
   _origApplyRole();
-  const rol = currentUser?.rol;
+  const rol = currentUser ? currentUser.rol : '';
   const canCaja = ['admin','gerente','caja'].includes(rol);
-  document.getElementById('nt-caja').style.display = canCaja ? '' : 'none';
+  const tabCaja = document.getElementById('nt-caja');
+  if (tabCaja) tabCaja.style.display = canCaja ? '' : 'none';
 }
 
 // ─── CARGAR ESTADO DE CAJA ───
 async function loadCaja() {
   try {
-    // Buscar la última apertura sin cierre (caja abierta)
-    const aperturas = await SB.sel('pos_caja',
-      'tipo=eq.apertura&order=created_at.desc&limit=1'
-    );
-    const cierres = await SB.sel('pos_caja',
-      'tipo=eq.cierre&order=created_at.desc&limit=1'
-    );
-
-    const ultimaApertura = aperturas[0];
-    const ultimoCierre   = cierres[0];
-
-    if (ultimaApertura && (!ultimoCierre ||
-        new Date(ultimaApertura.created_at) > new Date(ultimoCierre.created_at))) {
-      cajaAbierta = ultimaApertura;
+    const aperturas = await SB.sel('pos_caja', 'tipo=eq.apertura&order=created_at.desc&limit=1');
+    const cierres   = await SB.sel('pos_caja', 'tipo=eq.cierre&order=created_at.desc&limit=1');
+    const ua = aperturas[0];
+    const uc = cierres[0];
+    if (ua && (!uc || new Date(ua.created_at) > new Date(uc.created_at))) {
+      cajaAbierta = ua;
     } else {
       cajaAbierta = null;
     }
-
     renderCajaPanel();
   } catch(e) {
-    toast('Error cargando estado de caja: ' + e.message, 'err');
+    toast('Error cargando caja: ' + e.message, 'err');
   }
 }
 
 // ─── RENDER PANEL CAJA ───
 async function renderCajaPanel() {
-  const el = document.getElementById('cajaEstado');
+  const el    = document.getElementById('cajaEstado');
   const badge = document.getElementById('cajaBadge');
+  if (!el) return;
 
   if (!cajaAbierta) {
-    // ── CAJA CERRADA ──
-    badge.innerHTML = '<span class="badge bg-red" style="font-size:12px">⬤ Cerrada</span>';
+    badge.innerHTML = '<span class="badge bg-red" style="font-size:12px">&#x25CF; Cerrada</span>';
 
-    // Último cierre para referencia
-    let ultCierreHtml = '';
+    // Último cierre
+    let ultHtml = '';
     try {
       const cierres = await SB.sel('pos_caja', 'tipo=eq.cierre&order=created_at.desc&limit=1');
       if (cierres[0]) {
         const uc = cierres[0];
-        ultCierreHtml = `
-          <div style="background:var(--s2);border:1px solid var(--bdr);border-radius:var(--r);padding:14px;margin-top:16px">
-            <div style="font-size:11px;color:var(--t3);font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Último cierre</div>
-            <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">
-              <div style="color:var(--t2)">Fecha</div><div>${new Date(uc.created_at).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'})}</div>
-              <div style="color:var(--t2)">Ventas totales</div><div style="font-weight:600;color:var(--teal)">${Number(uc.total_ventas||0).toFixed(2)} €</div>
-              <div style="color:var(--t2)">Tickets</div><div>${uc.num_tickets||0}</div>
-              <div style="color:var(--t2)">Diferencia caja</div><div style="color:${Number(uc.diferencia||0)>=0?'var(--teal)':'var(--red)';font-weight:600">${Number(uc.diferencia||0).toFixed(2)} €</div>
-            </div>
-          </div>`;
+        const diff = Number(uc.diferencia || 0);
+        const diffColor = diff >= 0 ? 'var(--teal)' : 'var(--red)';
+        const diffStr = (diff >= 0 ? '+' : '') + diff.toFixed(2) + ' \u20ac';
+        const fechaStr = new Date(uc.created_at).toLocaleString('es-ES', {day:'2-digit', month:'2-digit', year:'numeric', hour:'2-digit', minute:'2-digit'});
+        ultHtml = '<div style="background:var(--s2);border:1px solid var(--bdr);border-radius:var(--r);padding:14px;margin-top:16px">'
+          + '<div style="font-size:11px;color:var(--t3);font-weight:600;letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Último cierre</div>'
+          + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px;font-size:12px">'
+          + '<div style="color:var(--t2)">Fecha</div><div>' + fechaStr + '</div>'
+          + '<div style="color:var(--t2)">Ventas totales</div><div style="font-weight:600;color:var(--teal)">' + Number(uc.total_ventas||0).toFixed(2) + ' \u20ac</div>'
+          + '<div style="color:var(--t2)">Tickets</div><div>' + (uc.num_tickets||0) + '</div>'
+          + '<div style="color:var(--t2)">Diferencia</div><div style="font-weight:600;color:' + diffColor + '">' + diffStr + '</div>'
+          + '</div></div>';
       }
     } catch(_) {}
 
-    el.innerHTML = `
-      <div style="max-width:520px">
-        <div style="background:var(--s1);border:1px solid var(--bdr);border-radius:var(--r2);padding:28px;text-align:center">
-          <div style="font-size:48px;margin-bottom:12px">🔒</div>
-          <div style="font-size:16px;font-weight:600;margin-bottom:6px">Caja cerrada</div>
-          <div style="font-size:12px;color:var(--t3);margin-bottom:24px">Abre la caja para comenzar a operar</div>
-          <button class="btn btn-primary" onclick="abrirModalApertura()" style="padding:11px 28px;font-size:14px">
-            🔓 Abrir caja
-          </button>
-        </div>
-        ${ultCierreHtml}
-      </div>`;
+    el.innerHTML = '<div style="max-width:520px">'
+      + '<div style="background:var(--s1);border:1px solid var(--bdr);border-radius:var(--r2);padding:28px;text-align:center">'
+      + '<div style="font-size:48px;margin-bottom:12px">\uD83D\uDD12</div>'
+      + '<div style="font-size:16px;font-weight:600;margin-bottom:6px">Caja cerrada</div>'
+      + '<div style="font-size:12px;color:var(--t3);margin-bottom:24px">Abre la caja para comenzar a operar</div>'
+      + '<button class="btn btn-primary" onclick="abrirModalApertura()" style="padding:11px 28px;font-size:14px">\uD83D\uDD13 Abrir caja</button>'
+      + '</div>' + ultHtml + '</div>';
     return;
   }
 
   // ── CAJA ABIERTA ──
-  badge.innerHTML = '<span class="badge bg-teal" style="font-size:12px">⬤ Abierta</span>';
+  badge.innerHTML = '<span class="badge bg-teal" style="font-size:12px">&#x25CF; Abierta</span>';
 
-  // Calcular ventas del turno
   const apertura_ts = cajaAbierta.created_at;
   let facturasTurno = [];
   try {
-    facturasTurno = await SB.sel('pos_facturas',
-      `created_at=gte.${encodeURIComponent(apertura_ts)}&order=created_at.asc`
-    );
+    facturasTurno = await SB.sel('pos_facturas', 'created_at=gte.' + encodeURIComponent(apertura_ts) + '&order=created_at.asc');
   } catch(_) {}
 
-  const totalTurno   = facturasTurno.reduce((s,f) => s + Number(f.total||0), 0);
-  const efectivoT    = facturasTurno.filter(f=>f.metodo_pago==='efectivo').reduce((s,f)=>s+Number(f.total||0),0);
-  const tarjetaT     = facturasTurno.filter(f=>f.metodo_pago==='tarjeta').reduce((s,f)=>s+Number(f.total||0),0);
-  const bizumT       = facturasTurno.filter(f=>f.metodo_pago==='bizum').reduce((s,f)=>s+Number(f.total||0),0);
-  const numTickets   = facturasTurno.length;
-  const ticketMedio  = numTickets > 0 ? (totalTurno / numTickets).toFixed(2) : '0.00';
+  const totalTurno  = facturasTurno.reduce(function(s,f){ return s + Number(f.total||0); }, 0);
+  const efectivoT   = facturasTurno.filter(function(f){ return f.metodo_pago==='efectivo'; }).reduce(function(s,f){ return s+Number(f.total||0); }, 0);
+  const tarjetaT    = facturasTurno.filter(function(f){ return f.metodo_pago==='tarjeta'; }).reduce(function(s,f){ return s+Number(f.total||0); }, 0);
+  const bizumT      = facturasTurno.filter(function(f){ return f.metodo_pago==='bizum'; }).reduce(function(s,f){ return s+Number(f.total||0); }, 0);
+  const numTickets  = facturasTurno.length;
+  const ticketMedio = numTickets > 0 ? (totalTurno / numTickets).toFixed(2) : '0.00';
   const fondoInicial = Number(cajaAbierta.fondo_inicial||0);
   const efectivoEsperado = fondoInicial + efectivoT;
-
-  // Tabla de tickets recientes
   const recientes = facturasTurno.slice(-5).reverse();
 
-  el.innerHTML = `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:900px">
+  // Filas de métodos de pago
+  var metodosHtml = '';
+  var metodos = [
+    ['\uD83D\uDCB5 Efectivo', efectivoT,  'var(--gold)'],
+    ['\uD83D\uDCB3 Tarjeta',  tarjetaT,   'var(--blue)'],
+    ['\uD83D\uDCF1 Bizum',    bizumT,     'var(--teal)']
+  ];
+  for (var mi = 0; mi < metodos.length; mi++) {
+    var mlabel = metodos[mi][0], mval = metodos[mi][1], mcolor = metodos[mi][2];
+    var pct = totalTurno > 0 ? Math.round(mval / totalTurno * 100) : 0;
+    metodosHtml += '<div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid var(--bdr)">'
+      + '<span style="font-size:13px;flex:1;color:var(--t2)">' + mlabel + '</span>'
+      + '<span style="font-weight:700;color:' + mcolor + '">' + mval.toFixed(2) + ' \u20ac</span>'
+      + '<div style="width:80px;height:4px;background:var(--s3);border-radius:2px;overflow:hidden">'
+      + '<div style="height:100%;background:' + mcolor + ';width:' + pct + '%;border-radius:2px"></div></div>'
+      + '<span style="font-size:11px;color:var(--t3);width:32px;text-align:right">' + pct + '%</span>'
+      + '</div>';
+  }
 
-      <!-- STATS TURNO -->
-      <div>
-        <div style="font-size:11px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Ventas del turno</div>
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">
-          <div class="fsc"><div class="fsc-label">Total vendido</div><div class="fsc-val" style="color:var(--teal)">${totalTurno.toFixed(2)} €</div></div>
-          <div class="fsc"><div class="fsc-label">Nº tickets</div><div class="fsc-val" style="color:var(--gold)">${numTickets}</div></div>
-          <div class="fsc"><div class="fsc-label">Ticket medio</div><div class="fsc-val" style="color:var(--blue)">${ticketMedio} €</div></div>
-          <div class="fsc"><div class="fsc-label">Fondo inicial</div><div class="fsc-val">${fondoInicial.toFixed(2)} €</div></div>
-        </div>
+  // Tickets recientes
+  var recientesHtml = '';
+  if (recientes.length) {
+    for (var ri = 0; ri < recientes.length; ri++) {
+      var rf = recientes[ri];
+      var rtime = new Date(rf.created_at).toLocaleTimeString('es-ES', {hour:'2-digit', minute:'2-digit'});
+      recientesHtml += '<div style="display:flex;align-items:center;gap:10px;padding:9px 13px;border-bottom:1px solid var(--bdr);font-size:12px">'
+        + '<span style="font-family:var(--fm);color:var(--gold);font-size:11px">' + rf.num + '</span>'
+        + '<span style="color:var(--t2);flex:1">Mesa ' + (rf.mesa_num||'?') + '</span>'
+        + '<span class="badge bg-gold" style="font-size:10px">' + rf.metodo_pago + '</span>'
+        + '<span style="font-weight:700">' + Number(rf.total).toFixed(2) + ' \u20ac</span>'
+        + '<span style="color:var(--t3);font-size:10px">' + rtime + '</span>'
+        + '</div>';
+    }
+  } else {
+    recientesHtml = '<div style="padding:20px;text-align:center;color:var(--t3);font-size:12px">Sin tickets en este turno</div>';
+  }
 
-        <div style="font-size:11px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Desglose por método de pago</div>
-        <div style="background:var(--s1);border:1px solid var(--bdr);border-radius:var(--r);overflow:hidden">
-          ${[
-            ['💵 Efectivo', efectivoT, 'var(--gold)'],
-            ['💳 Tarjeta',  tarjetaT,  'var(--blue)'],
-            ['📱 Bizum',    bizumT,    'var(--teal)'],
-          ].map(([label, val, color]) => `
-            <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;border-bottom:1px solid var(--bdr)">
-              <span style="font-size:13px;flex:1;color:var(--t2)">${label}</span>
-              <span style="font-weight:700;color:${color}">${val.toFixed(2)} €</span>
-              <div style="width:80px;height:4px;background:var(--s3);border-radius:2px;overflow:hidden">
-                <div style="height:100%;background:${color};width:${totalTurno>0?Math.round(val/totalTurno*100):0}%;border-radius:2px"></div>
-              </div>
-              <span style="font-size:11px;color:var(--t3);width:32px;text-align:right">${totalTurno>0?Math.round(val/totalTurno*100):0}%</span>
-            </div>`).join('')}
-          <div style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--s2)">
-            <span style="font-size:13px;font-weight:600;flex:1">💰 Efectivo esperado en caja</span>
-            <span style="font-weight:700;font-size:15px">${efectivoEsperado.toFixed(2)} €</span>
-          </div>
-        </div>
+  const fechaApertura = new Date(cajaAbierta.created_at).toLocaleString('es-ES', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
 
-        <!-- APERTURA INFO -->
-        <div style="margin-top:12px;font-size:11px;color:var(--t3);background:var(--s2);padding:10px 12px;border-radius:var(--r)">
-          Caja abierta: <strong style="color:var(--t1)">${new Date(cajaAbierta.created_at).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</strong>
-          · Fondo: <strong style="color:var(--t1)">${fondoInicial.toFixed(2)} €</strong>
-        </div>
-      </div>
+  el.innerHTML = '<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;max-width:900px">'
 
-      <!-- PANEL DERECHO: tickets recientes + acción cierre -->
-      <div>
-        <div style="font-size:11px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Últimos tickets</div>
-        <div style="background:var(--s1);border:1px solid var(--bdr);border-radius:var(--r);overflow:hidden;margin-bottom:14px">
-          ${recientes.length ? recientes.map(f=>`
-            <div style="display:flex;align-items:center;gap:10px;padding:9px 13px;border-bottom:1px solid var(--bdr);font-size:12px">
-              <span style="font-family:var(--fm);color:var(--gold);font-size:11px">${f.num}</span>
-              <span style="color:var(--t2);flex:1">Mesa ${f.mesa_num||'?'}</span>
-              <span class="badge bg-gold" style="font-size:10px">${f.metodo_pago}</span>
-              <span style="font-weight:700">${Number(f.total).toFixed(2)} €</span>
-              <span style="color:var(--t3);font-size:10px">${new Date(f.created_at).toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'})}</span>
-            </div>`).join('')
-          : '<div style="padding:20px;text-align:center;color:var(--t3);font-size:12px">Sin tickets en este turno</div>'}
-        </div>
+    // COLUMNA IZQUIERDA
+    + '<div>'
+    + '<div style="font-size:11px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Ventas del turno</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:14px">'
+    + '<div class="fsc"><div class="fsc-label">Total vendido</div><div class="fsc-val" style="color:var(--teal)">' + totalTurno.toFixed(2) + ' \u20ac</div></div>'
+    + '<div class="fsc"><div class="fsc-label">N\u00ba tickets</div><div class="fsc-val" style="color:var(--gold)">' + numTickets + '</div></div>'
+    + '<div class="fsc"><div class="fsc-label">Ticket medio</div><div class="fsc-val" style="color:var(--blue)">' + ticketMedio + ' \u20ac</div></div>'
+    + '<div class="fsc"><div class="fsc-label">Fondo inicial</div><div class="fsc-val">' + fondoInicial.toFixed(2) + ' \u20ac</div></div>'
+    + '</div>'
+    + '<div style="font-size:11px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Desglose por m\u00e9todo de pago</div>'
+    + '<div style="background:var(--s1);border:1px solid var(--bdr);border-radius:var(--r);overflow:hidden">'
+    + metodosHtml
+    + '<div style="display:flex;align-items:center;gap:12px;padding:11px 14px;background:var(--s2)">'
+    + '<span style="font-size:13px;font-weight:600;flex:1">\uD83D\uDCB0 Efectivo esperado en caja</span>'
+    + '<span style="font-weight:700;font-size:15px">' + efectivoEsperado.toFixed(2) + ' \u20ac</span>'
+    + '</div></div>'
+    + '<div style="margin-top:12px;font-size:11px;color:var(--t3);background:var(--s2);padding:10px 12px;border-radius:var(--r)">'
+    + 'Caja abierta: <strong style="color:var(--t1)">' + fechaApertura + '</strong>'
+    + ' &middot; Fondo: <strong style="color:var(--t1)">' + fondoInicial.toFixed(2) + ' \u20ac</strong>'
+    + '</div></div>'
 
-        <!-- BOTÓN CIERRE -->
-        <div style="background:var(--s1);border:1px solid rgba(239,68,68,.25);border-radius:var(--r2);padding:18px">
-          <div style="font-size:13px;font-weight:600;margin-bottom:6px">Cerrar caja</div>
-          <div style="font-size:11px;color:var(--t3);margin-bottom:14px;line-height:1.5">
-            Al cerrar se genera el informe del turno con ventas por método de pago y diferencia de caja.
-          </div>
-          <button class="btn btn-danger" onclick="abrirModalCierre()" style="width:100%;justify-content:center;padding:11px;font-size:13px">
-            🔒 Cerrar caja y generar informe
-          </button>
-        </div>
-      </div>
-    </div>`;
+    // COLUMNA DERECHA
+    + '<div>'
+    + '<div style="font-size:11px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">\u00daltimos tickets</div>'
+    + '<div style="background:var(--s1);border:1px solid var(--bdr);border-radius:var(--r);overflow:hidden;margin-bottom:14px">'
+    + recientesHtml
+    + '</div>'
+    + '<div style="background:var(--s1);border:1px solid rgba(239,68,68,.25);border-radius:var(--r2);padding:18px">'
+    + '<div style="font-size:13px;font-weight:600;margin-bottom:6px">Cerrar caja</div>'
+    + '<div style="font-size:11px;color:var(--t3);margin-bottom:14px;line-height:1.5">Al cerrar se genera el informe del turno con ventas por m\u00e9todo de pago y diferencia de caja.</div>'
+    + '<button class="btn btn-danger" onclick="abrirModalCierre()" style="width:100%;justify-content:center;padding:11px;font-size:13px">\uD83D\uDD12 Cerrar caja y generar informe</button>'
+    + '</div></div>'
+    + '</div>';
 }
 
 // ─── MODAL APERTURA ───
 function abrirModalApertura() {
-  document.getElementById('mCajaTitle').textContent = '🔓 Apertura de caja';
-  document.getElementById('mCajaBody').innerHTML = `
-    <div style="margin-bottom:16px">
-      <div style="font-size:12px;color:var(--t2);line-height:1.6;background:var(--s2);padding:12px;border-radius:var(--r);margin-bottom:14px">
-        Introduce el fondo de caja inicial (efectivo que pones en la caja al empezar el turno).
-      </div>
-      <div class="fg">
-        <label style="font-size:11px;color:var(--t3);font-weight:600;margin-bottom:5px;display:block">Fondo inicial (€)</label>
-        <input type="number" id="fondoInput" class="fc" value="0" min="0" step="0.01"
-          style="font-size:20px;font-weight:700;color:var(--gold);text-align:right"
-          placeholder="0.00">
-      </div>
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px">
-        ${[0,50,100,200].map(v=>`<button onclick="document.getElementById('fondoInput').value=${v}"
-          style="padding:8px;background:var(--s3);border:1px solid var(--bdr);border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;color:var(--t2)"
-          onmouseover="this.style.borderColor='var(--gold)';this.style.color='var(--gold)'"
-          onmouseout="this.style.borderColor='var(--bdr)';this.style.color='var(--t2)'">${v} €</button>`).join('')}
-      </div>
-    </div>`;
-  document.getElementById('mCajaActions').innerHTML = `
-    <button class="btn btn-ghost" onclick="closeM('mCaja')">Cancelar</button>
-    <button class="btn btn-primary" onclick="confirmarApertura()" style="flex:1;justify-content:center;padding:11px">✓ Abrir caja</button>`;
+  document.getElementById('mCajaTitle').textContent = '\uD83D\uDD13 Apertura de caja';
+  document.getElementById('mCajaBody').innerHTML =
+    '<div style="margin-bottom:16px">'
+    + '<div style="font-size:12px;color:var(--t2);line-height:1.6;background:var(--s2);padding:12px;border-radius:var(--r);margin-bottom:14px">'
+    + 'Introduce el fondo de caja inicial (efectivo que pones en la caja al empezar el turno).'
+    + '</div>'
+    + '<div class="fg"><label style="font-size:11px;color:var(--t3);font-weight:600;margin-bottom:5px;display:block">Fondo inicial (\u20ac)</label>'
+    + '<input type="number" id="fondoInput" class="fc" value="0" min="0" step="0.01" style="font-size:20px;font-weight:700;color:var(--gold);text-align:right" placeholder="0.00">'
+    + '</div>'
+    + '<div style="display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-top:6px" id="billetesApertura"></div>'
+    + '</div>';
+
+  // Botones de billetes sin template literal anidado
+  var billetes = [0, 50, 100, 200];
+  var billetesEl = document.getElementById('billetesApertura');
+  billetes.forEach(function(v) {
+    var btn = document.createElement('button');
+    btn.textContent = v + ' \u20ac';
+    btn.style.cssText = 'padding:8px;background:var(--s3);border:1px solid var(--bdr);border-radius:7px;font-size:12px;font-weight:600;cursor:pointer;color:var(--t2)';
+    btn.onmouseover = function() { this.style.borderColor='var(--gold)'; this.style.color='var(--gold)'; };
+    btn.onmouseout  = function() { this.style.borderColor='var(--bdr)';  this.style.color='var(--t2)'; };
+    btn.onclick = function() { document.getElementById('fondoInput').value = v; };
+    billetesEl.appendChild(btn);
+  });
+
+  document.getElementById('mCajaActions').innerHTML =
+    '<button class="btn btn-ghost" onclick="closeM(\'mCaja\')">Cancelar</button>'
+    + '<button class="btn btn-primary" onclick="confirmarApertura()" style="flex:1;justify-content:center;padding:11px">\u2713 Abrir caja</button>';
   openM('mCaja');
-  setTimeout(() => document.getElementById('fondoInput').focus(), 100);
+  setTimeout(function() { var el = document.getElementById('fondoInput'); if(el) el.focus(); }, 100);
 }
 
 async function confirmarApertura() {
-  const fondo = parseFloat(document.getElementById('fondoInput').value) || 0;
+  const fondoEl = document.getElementById('fondoInput');
+  const fondo = parseFloat(fondoEl ? fondoEl.value : '0') || 0;
   load(true);
   try {
-    const row = {
-      id:            'caja_' + Date.now(),
-      tipo:          'apertura',
-      user_id:       currentUser.id,
-      fondo_inicial: fondo,
-      nota:          '',
-    };
+    const row = { id: 'caja_' + Date.now(), tipo: 'apertura', user_id: currentUser.id, fondo_inicial: fondo, nota: '' };
     const res = await SB.ins('pos_caja', row);
     cajaAbierta = res[0] || row;
     closeM('mCaja');
     await renderCajaPanel();
-    toast(`🔓 Caja abierta con fondo de ${fondo.toFixed(2)} €`, 'ok');
+    toast('\uD83D\uDD13 Caja abierta con fondo de ' + fondo.toFixed(2) + ' \u20ac', 'ok');
   } catch(e) { toast('Error al abrir caja: ' + e.message, 'err'); }
   finally { load(false); }
 }
 
 // ─── MODAL CIERRE ───
 async function abrirModalCierre() {
-  document.getElementById('mCajaTitle').textContent = '🔒 Cierre de caja';
+  document.getElementById('mCajaTitle').textContent = '\uD83D\uDD12 Cierre de caja';
 
-  // Calcular datos del turno
   const apertura_ts = cajaAbierta.created_at;
   let facturasTurno = [];
   try {
-    facturasTurno = await SB.sel('pos_facturas',
-      `created_at=gte.${encodeURIComponent(apertura_ts)}&order=created_at.asc`
-    );
+    facturasTurno = await SB.sel('pos_facturas', 'created_at=gte.' + encodeURIComponent(apertura_ts) + '&order=created_at.asc');
   } catch(_) {}
 
-  const totalVentas  = facturasTurno.reduce((s,f)=>s+Number(f.total||0),0);
-  const efectivoT    = facturasTurno.filter(f=>f.metodo_pago==='efectivo').reduce((s,f)=>s+Number(f.total||0),0);
-  const tarjetaT     = facturasTurno.filter(f=>f.metodo_pago==='tarjeta').reduce((s,f)=>s+Number(f.total||0),0);
-  const bizumT       = facturasTurno.filter(f=>f.metodo_pago==='bizum').reduce((s,f)=>s+Number(f.total||0),0);
+  const totalVentas  = facturasTurno.reduce(function(s,f){ return s+Number(f.total||0); }, 0);
+  const efectivoT    = facturasTurno.filter(function(f){ return f.metodo_pago==='efectivo'; }).reduce(function(s,f){ return s+Number(f.total||0); }, 0);
+  const tarjetaT     = facturasTurno.filter(function(f){ return f.metodo_pago==='tarjeta'; }).reduce(function(s,f){ return s+Number(f.total||0); }, 0);
+  const bizumT       = facturasTurno.filter(function(f){ return f.metodo_pago==='bizum'; }).reduce(function(s,f){ return s+Number(f.total||0); }, 0);
   const numTickets   = facturasTurno.length;
   const fondoInicial = Number(cajaAbierta.fondo_inicial||0);
   const efectivoEsp  = fondoInicial + efectivoT;
+  const fechaAp      = new Date(cajaAbierta.created_at).toLocaleString('es-ES', {day:'2-digit', month:'2-digit', hour:'2-digit', minute:'2-digit'});
 
-  document.getElementById('mCajaBody').innerHTML = `
-    <!-- RESUMEN -->
-    <div style="background:var(--s2);border-radius:var(--r);padding:14px;margin-bottom:14px">
-      <div style="font-size:11px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Resumen del turno</div>
-      <div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">
-        <div style="color:var(--t2)">Apertura</div>
-        <div>${new Date(apertura_ts).toLocaleString('es-ES',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}</div>
-        <div style="color:var(--t2)">Fondo inicial</div><div><strong>${fondoInicial.toFixed(2)} €</strong></div>
-        <div style="color:var(--t2)">Nº tickets</div><div><strong>${numTickets}</strong></div>
-        <div style="color:var(--t2)">Total ventas</div><div style="color:var(--teal);font-weight:700">${totalVentas.toFixed(2)} €</div>
-        <div style="color:var(--t2)">Efectivo ventas</div><div>${efectivoT.toFixed(2)} €</div>
-        <div style="color:var(--t2)">Tarjeta</div><div>${tarjetaT.toFixed(2)} €</div>
-        <div style="color:var(--t2)">Bizum</div><div>${bizumT.toFixed(2)} €</div>
-        <div style="color:var(--t2);font-weight:600">Efectivo esperado</div>
-        <div style="font-weight:700;color:var(--gold)">${efectivoEsp.toFixed(2)} €</div>
-      </div>
-    </div>
+  document.getElementById('mCajaBody').innerHTML =
+    '<div style="background:var(--s2);border-radius:var(--r);padding:14px;margin-bottom:14px">'
+    + '<div style="font-size:11px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Resumen del turno</div>'
+    + '<div style="display:grid;grid-template-columns:1fr 1fr;gap:6px;font-size:12px">'
+    + '<div style="color:var(--t2)">Apertura</div><div>' + fechaAp + '</div>'
+    + '<div style="color:var(--t2)">Fondo inicial</div><div><strong>' + fondoInicial.toFixed(2) + ' \u20ac</strong></div>'
+    + '<div style="color:var(--t2)">N\u00ba tickets</div><div><strong>' + numTickets + '</strong></div>'
+    + '<div style="color:var(--t2)">Total ventas</div><div style="color:var(--teal);font-weight:700">' + totalVentas.toFixed(2) + ' \u20ac</div>'
+    + '<div style="color:var(--t2)">Efectivo ventas</div><div>' + efectivoT.toFixed(2) + ' \u20ac</div>'
+    + '<div style="color:var(--t2)">Tarjeta</div><div>' + tarjetaT.toFixed(2) + ' \u20ac</div>'
+    + '<div style="color:var(--t2)">Bizum</div><div>' + bizumT.toFixed(2) + ' \u20ac</div>'
+    + '<div style="color:var(--t2);font-weight:600">Efectivo esperado</div>'
+    + '<div style="font-weight:700;color:var(--gold)">' + efectivoEsp.toFixed(2) + ' \u20ac</div>'
+    + '</div></div>'
 
-    <!-- ARQUEO -->
-    <div style="background:var(--s2);border-radius:var(--r);padding:14px;margin-bottom:14px">
-      <div style="font-size:11px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Arqueo de caja</div>
-      <div class="fg">
-        <label style="font-size:11px;color:var(--t3);font-weight:600;margin-bottom:5px;display:block">
-          Efectivo real contado en caja (€)
-        </label>
-        <input type="number" id="efectivoRealInput" class="fc" min="0" step="0.01"
-          value="${efectivoEsp.toFixed(2)}"
-          style="font-size:18px;font-weight:700;color:var(--gold);text-align:right"
-          oninput="calcDiferencia(${efectivoEsp.toFixed(2)})">
-      </div>
-      <div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid var(--bdr);margin-top:4px">
-        <span style="font-size:12px;color:var(--t2)">Diferencia</span>
-        <span id="diferenciaCierre" style="font-size:17px;font-weight:700;color:var(--teal)">0,00 €</span>
-      </div>
-    </div>
+    + '<div style="background:var(--s2);border-radius:var(--r);padding:14px;margin-bottom:14px">'
+    + '<div style="font-size:11px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Arqueo de caja</div>'
+    + '<div class="fg"><label style="font-size:11px;color:var(--t3);font-weight:600;margin-bottom:5px;display:block">Efectivo real contado en caja (\u20ac)</label>'
+    + '<input type="number" id="efectivoRealInput" class="fc" min="0" step="0.01" value="' + efectivoEsp.toFixed(2) + '" style="font-size:18px;font-weight:700;color:var(--gold);text-align:right" oninput="calcDiferencia(' + efectivoEsp.toFixed(2) + ')">'
+    + '</div>'
+    + '<div style="display:flex;justify-content:space-between;align-items:center;padding:10px 0;border-top:1px solid var(--bdr);margin-top:4px">'
+    + '<span style="font-size:12px;color:var(--t2)">Diferencia</span>'
+    + '<span id="diferenciaCierre" style="font-size:17px;font-weight:700;color:var(--teal)">0,00 \u20ac</span>'
+    + '</div></div>'
 
-    <!-- NOTA -->
-    <div class="fg">
-      <label style="font-size:11px;color:var(--t3);font-weight:600;margin-bottom:5px;display:block">Nota (opcional)</label>
-      <textarea id="notaCierre" class="fc" rows="2" placeholder="Incidencias, observaciones…" style="resize:none"></textarea>
-    </div>
+    + '<div class="fg"><label style="font-size:11px;color:var(--t3);font-weight:600;margin-bottom:5px;display:block">Nota (opcional)</label>'
+    + '<textarea id="notaCierre" class="fc" rows="2" placeholder="Incidencias, observaciones\u2026" style="resize:none"></textarea>'
+    + '</div>'
 
-    <input type="hidden" id="cierre_totalVentas" value="${totalVentas}">
-    <input type="hidden" id="cierre_efectivoT"   value="${efectivoT}">
-    <input type="hidden" id="cierre_tarjetaT"     value="${tarjetaT}">
-    <input type="hidden" id="cierre_bizumT"       value="${bizumT}">
-    <input type="hidden" id="cierre_numTickets"   value="${numTickets}">
-    <input type="hidden" id="cierre_fondoInicial" value="${fondoInicial}">
-    <input type="hidden" id="cierre_efectivoEsp"  value="${efectivoEsp}">`;
+    + '<input type="hidden" id="cierre_totalVentas" value="' + totalVentas + '">'
+    + '<input type="hidden" id="cierre_efectivoT"   value="' + efectivoT + '">'
+    + '<input type="hidden" id="cierre_tarjetaT"     value="' + tarjetaT + '">'
+    + '<input type="hidden" id="cierre_bizumT"       value="' + bizumT + '">'
+    + '<input type="hidden" id="cierre_numTickets"   value="' + numTickets + '">'
+    + '<input type="hidden" id="cierre_fondoInicial" value="' + fondoInicial + '">'
+    + '<input type="hidden" id="cierre_efectivoEsp"  value="' + efectivoEsp + '">';
 
-  document.getElementById('mCajaActions').innerHTML = `
-    <button class="btn btn-ghost" onclick="closeM('mCaja')">Cancelar</button>
-    <button class="btn btn-danger" onclick="confirmarCierre()" style="flex:1;justify-content:center;padding:11px">🔒 Confirmar cierre e imprimir informe</button>`;
+  document.getElementById('mCajaActions').innerHTML =
+    '<button class="btn btn-ghost" onclick="closeM(\'mCaja\')">Cancelar</button>'
+    + '<button class="btn btn-danger" onclick="confirmarCierre()" style="flex:1;justify-content:center;padding:11px">\uD83D\uDD12 Confirmar cierre e imprimir informe</button>';
 
   openM('mCaja');
 }
 
 function calcDiferencia(esperado) {
-  const real = parseFloat(document.getElementById('efectivoRealInput').value) || 0;
+  const el = document.getElementById('efectivoRealInput');
+  const real = el ? (parseFloat(el.value) || 0) : 0;
   const diff = real - esperado;
-  const el = document.getElementById('diferenciaCierre');
-  el.textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2) + ' €';
-  el.style.color = diff >= 0 ? 'var(--teal)' : 'var(--red)';
+  const span = document.getElementById('diferenciaCierre');
+  if (span) {
+    span.textContent = (diff >= 0 ? '+' : '') + diff.toFixed(2) + ' \u20ac';
+    span.style.color = diff >= 0 ? 'var(--teal)' : 'var(--red)';
+  }
 }
 
 async function confirmarCierre() {
@@ -1325,36 +1302,21 @@ async function confirmarCierre() {
   const efectivoEsp  = parseFloat(document.getElementById('cierre_efectivoEsp').value) || 0;
   const nota         = document.getElementById('notaCierre').value;
   const diferencia   = efectivoReal - efectivoEsp;
-
   load(true);
   try {
     const row = {
-      id:             'caja_' + Date.now(),
-      tipo:           'cierre',
-      user_id:        currentUser.id,
-      fondo_inicial:  fondoInicial,
-      efectivo_real:  efectivoReal,
-      total_efectivo: efectivoT,
-      total_tarjeta:  tarjetaT,
-      total_bizum:    bizumT,
-      total_ventas:   totalVentas,
-      num_tickets:    numTickets,
-      diferencia:     diferencia,
-      nota,
+      id: 'caja_' + Date.now(), tipo: 'cierre', user_id: currentUser.id,
+      fondo_inicial: fondoInicial, efectivo_real: efectivoReal,
+      total_efectivo: efectivoT, total_tarjeta: tarjetaT, total_bizum: bizumT,
+      total_ventas: totalVentas, num_tickets: numTickets,
+      diferencia: diferencia, nota: nota
     };
     await SB.ins('pos_caja', row);
     cajaAbierta = null;
     closeM('mCaja');
-
-    // Imprimir informe de cierre
-    imprimirInformeCierre({
-      fecha: new Date().toLocaleString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}),
-      fondoInicial, efectivoT, tarjetaT, bizumT,
-      totalVentas, numTickets, efectivoReal, efectivoEsp, diferencia, nota
-    });
-
+    imprimirInformeCierre({ fecha: new Date().toLocaleString('es-ES', {day:'2-digit',month:'2-digit',year:'numeric',hour:'2-digit',minute:'2-digit'}), fondoInicial, efectivoT, tarjetaT, bizumT, totalVentas, numTickets, efectivoReal, efectivoEsp, diferencia, nota });
     await renderCajaPanel();
-    toast('🔒 Caja cerrada. Informe generado.', 'ok');
+    toast('\uD83D\uDD12 Caja cerrada. Informe generado.', 'ok');
   } catch(e) { toast('Error al cerrar caja: ' + e.message, 'err'); }
   finally { load(false); }
 }
@@ -1362,40 +1324,34 @@ async function confirmarCierre() {
 // ─── IMPRIMIR INFORME DE CIERRE ───
 function imprimirInformeCierre(d) {
   const cfg = C.config;
-  const sep = '─'.repeat(32);
-  const row = (label, val) =>
-    `<div class="t-row"><span>${label}</span><span>${val}</span></div>`;
-
-  document.getElementById('ticketPrint').innerHTML = `
-    <div class="ticket">
-      <div class="t-center t-logo">${cfg.nombre || 'Restaurante'}</div>
-      <div class="t-center" style="font-size:10px">${cfg.nif || ''}</div>
-      <hr class="t-sep">
-      <div class="t-center" style="font-weight:700;font-size:14px">INFORME DE CIERRE DE CAJA</div>
-      <div class="t-center" style="font-size:10px">${d.fecha}</div>
-      <hr class="t-sep">
-      ${row('Fondo inicial', d.fondoInicial.toFixed(2) + ' €')}
-      ${row('Nº tickets', d.numTickets)}
-      <hr class="t-sep">
-      <div style="font-weight:700;font-size:11px;margin:4px 0">VENTAS POR MÉTODO:</div>
-      ${row('💵 Efectivo', d.efectivoT.toFixed(2) + ' €')}
-      ${row('💳 Tarjeta',  d.tarjetaT.toFixed(2) + ' €')}
-      ${row('📱 Bizum',    d.bizumT.toFixed(2) + ' €')}
-      <hr class="t-sep">
-      <div class="t-total"><span>TOTAL VENTAS</span><span>${d.totalVentas.toFixed(2)} €</span></div>
-      <hr class="t-sep">
-      <div style="font-weight:700;font-size:11px;margin:4px 0">ARQUEO:</div>
-      ${row('Efectivo esperado', d.efectivoEsp.toFixed(2) + ' €')}
-      ${row('Efectivo contado',  d.efectivoReal.toFixed(2) + ' €')}
-      <div class="t-total" style="color:${d.diferencia >= 0 ? '#059669' : '#dc2626'}">
-        <span>DIFERENCIA</span>
-        <span>${(d.diferencia >= 0 ? '+' : '') + d.diferencia.toFixed(2)} €</span>
-      </div>
-      <hr class="t-sep">
-      ${d.nota ? `<div style="font-size:10px">Nota: ${d.nota}</div><hr class="t-sep">` : ''}
-      <div class="t-foot">Cierre realizado por: ${currentUser?.nombre || '—'}</div>
-      <div class="t-foot" style="font-size:9px">Documento interno — No válido como factura</div>
-    </div>`;
+  document.getElementById('ticketPrint').innerHTML =
+    '<div class="ticket">'
+    + '<div class="t-center t-logo">' + (cfg.nombre || 'Restaurante') + '</div>'
+    + '<div class="t-center" style="font-size:10px">' + (cfg.nif || '') + '</div>'
+    + '<hr class="t-sep">'
+    + '<div class="t-center" style="font-weight:700;font-size:14px">INFORME DE CIERRE DE CAJA</div>'
+    + '<div class="t-center" style="font-size:10px">' + d.fecha + '</div>'
+    + '<hr class="t-sep">'
+    + '<div class="t-row"><span>Fondo inicial</span><span>' + d.fondoInicial.toFixed(2) + '\u20ac</span></div>'
+    + '<div class="t-row"><span>N\u00ba tickets</span><span>' + d.numTickets + '</span></div>'
+    + '<hr class="t-sep">'
+    + '<div style="font-weight:700;font-size:11px;margin:4px 0">VENTAS POR M\u00c9TODO:</div>'
+    + '<div class="t-row"><span>\uD83D\uDCB5 Efectivo</span><span>' + d.efectivoT.toFixed(2) + '\u20ac</span></div>'
+    + '<div class="t-row"><span>\uD83D\uDCB3 Tarjeta</span><span>'  + d.tarjetaT.toFixed(2)  + '\u20ac</span></div>'
+    + '<div class="t-row"><span>\uD83D\uDCF1 Bizum</span><span>'    + d.bizumT.toFixed(2)    + '\u20ac</span></div>'
+    + '<hr class="t-sep">'
+    + '<div class="t-total"><span>TOTAL VENTAS</span><span>' + d.totalVentas.toFixed(2) + '\u20ac</span></div>'
+    + '<hr class="t-sep">'
+    + '<div style="font-weight:700;font-size:11px;margin:4px 0">ARQUEO:</div>'
+    + '<div class="t-row"><span>Efectivo esperado</span><span>' + d.efectivoEsp.toFixed(2) + '\u20ac</span></div>'
+    + '<div class="t-row"><span>Efectivo contado</span><span>'  + d.efectivoReal.toFixed(2) + '\u20ac</span></div>'
+    + '<div class="t-total" style="color:' + (d.diferencia >= 0 ? '#059669' : '#dc2626') + '">'
+    + '<span>DIFERENCIA</span><span>' + (d.diferencia >= 0 ? '+' : '') + d.diferencia.toFixed(2) + '\u20ac</span></div>'
+    + '<hr class="t-sep">'
+    + (d.nota ? '<div style="font-size:10px">Nota: ' + d.nota + '</div><hr class="t-sep">' : '')
+    + '<div class="t-foot">Cierre realizado por: ' + (currentUser ? currentUser.nombre : '-') + '</div>'
+    + '<div class="t-foot" style="font-size:9px">Documento interno &mdash; No v\u00e1lido como factura</div>'
+    + '</div>';
   window.print();
 }
 
