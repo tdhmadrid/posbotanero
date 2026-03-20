@@ -642,9 +642,9 @@ function renderMesas(){
       else if(pedido&&pedido.estado==='entregado'){st='ocupada';} // entregado = en mesa, esperando cobro
       else if(pedido){st='ocupada';}
       else{st='abierta';}
-      const tot=pedido&&pedido.items&&pedido.items.length?pedido.items.reduce((s,i)=>s+(i.price*i.qty),0).toFixed(2)+' \u20ac':null;
+      const tot=(m.sesion_activa&&pedido&&pedido.items&&pedido.items.length)?pedido.items.reduce((s,i)=>s+(i.price*i.qty),0).toFixed(2)+' \u20ac':null;
       let tmr='';
-      if(m.abierta_at){const mins=Math.floor((Date.now()-new Date(m.abierta_at).getTime())/60000);tmr=mins<60?mins+'m':Math.floor(mins/60)+'h'+(mins%60)+'m';}
+      if(m.sesion_activa&&m.abierta_at){const mins=Math.floor((Date.now()-new Date(m.abierta_at).getTime())/60000);tmr=mins<60?mins+'m':Math.floor(mins/60)+'h'+(mins%60)+'m';}
       const listoBadge=st==='listo'?'<span class="mc-listo-badge">\uD83D\uDD14 LISTO</span>':'';
       const comBadge=(m.sesion_activa&&m.comensales)?'<div class="mc-timer">\uD83D\uDC64 '+m.comensales+'</div>':'';
       html+='<div class="mc '+st+'" onclick="clickMesaWaiter(\''+m.id+'\')">'
@@ -665,6 +665,8 @@ async function clickMesa(mid){
   const mesa=C.mesas.find(m=>m.id===mid);
   if(!mesa)return;
   currentMesa=mesa;
+  // Si la mesa no está abierta, comanda vacía
+  if(!mesa.sesion_activa){orden={};renderOrden();return;}
   load(true);
   try{
     const pedidos=await SB.sel('pos_pedidos','mesa_id=eq.'+mid+'&estado=in.(abierto,en-cocina,listo,entregado)&order=created_at.desc&limit=1');

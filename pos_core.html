@@ -626,11 +626,13 @@ function renderMesas() {
   };
   const stLabel = {libre:'Libre',ocupada:'Ocupada',cocina:'En cocina',listo:'Listo'};
   const totalOf = m => {
+    if (!m.sesion_activa) return null; // no mostrar total si la mesa no está abierta
     const p = C.pedidos.find(x=>x.mesa_id===m.id);
     if (!p || !p.items?.length) return null;
     return p.items.reduce((s,i)=>s+(i.price*i.qty),0).toFixed(2)+' €';
   };
   const timerOf = m => {
+    if (!m.sesion_activa) return '';
     const p = C.pedidos.find(x=>x.mesa_id===m.id);
     if (!p) return '';
     const mins = Math.floor((Date.now()-new Date(p.created_at).getTime())/60000);
@@ -663,8 +665,9 @@ async function clickMesa(mid) {
   const mesa = C.mesas.find(m=>m.id===mid);
   if (!mesa) return;
   currentMesa = mesa;
-  // Cargar pedido activo de esta mesa
-  const pedidos = await SB.sel('pos_pedidos',`mesa_id=eq.${mid}&estado=in.(abierto,en-cocina,listo)&order=created_at.desc&limit=1`);
+  // Solo cargar pedido si la mesa tiene sesión activa
+  if (!mesa.sesion_activa) { orden={}; renderOrden(); return; }
+  const pedidos = await SB.sel('pos_pedidos',`mesa_id=eq.${mid}&estado=in.(abierto,en-cocina,listo,entregado)&order=created_at.desc&limit=1`);
   currentPedidoId = pedidos[0]?.id || null;
   orden = {};
   if (pedidos[0]?.items) {
