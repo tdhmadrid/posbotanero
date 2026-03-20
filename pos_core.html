@@ -556,7 +556,10 @@ function doLogout() {
 function applyRoleRestrictions() {
   const rol = currentUser.rol;
   const canFacturas = ['admin','gerente','caja'].includes(rol);
+  const canCaja     = ['admin','gerente','caja'].includes(rol);
   document.getElementById('nt-facturas').style.display = canFacturas ? '' : 'none';
+  const tabCaja = document.getElementById('nt-caja');
+  if (tabCaja) tabCaja.style.display = canCaja ? '' : 'none';
 }
 
 // ─── BOOT ───
@@ -587,7 +590,8 @@ function navTo(name,btn) {
   document.querySelectorAll('.nt').forEach(b=>b.classList.remove('on'));
   document.getElementById('panel'+name.charAt(0).toUpperCase()+name.slice(1)).classList.add('on');
   btn.classList.add('on');
-  if(name==='facturas') loadFacturas();
+  if (name==='facturas') loadFacturas();
+  if (name==='caja')     loadCaja();
 }
 
 // ─── MESAS ───
@@ -1005,15 +1009,6 @@ function openKDSInfo() { openM('mKDS'); }
 
 let cajaAbierta = null;
 
-// Parche applyRoleRestrictions para incluir tab caja
-const _origApplyRole = applyRoleRestrictions;
-function applyRoleRestrictions() {
-  _origApplyRole();
-  const rol = currentUser ? currentUser.rol : '';
-  const canCaja = ['admin','gerente','caja'].includes(rol);
-  const tabCaja = document.getElementById('nt-caja');
-  if (tabCaja) tabCaja.style.display = canCaja ? '' : 'none';
-}
 
 // ─── CARGAR ESTADO DE CAJA ───
 async function loadCaja() {
@@ -1355,12 +1350,6 @@ function imprimirInformeCierre(d) {
   window.print();
 }
 
-// ─── PATCH navTo para cargar caja ───
-const _origNavTo = navTo;
-function navTo(name, btn) {
-  _origNavTo(name, btn);
-  if (name === 'caja') loadCaja();
-}
 
 // ─── BOOT ───
 initLogin();
