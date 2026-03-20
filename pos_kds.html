@@ -151,6 +151,7 @@ async function sbUpd(table, match, body) {
 // ─── STATE ───
 // kdsOrders: { pedidoId: { id, mesaNum, items, estado, ts, itemsDone:{} } }
 let kdsOrders = {};
+const doneIds = new Set(); // IDs entregados en esta sesión
 let doneOrders = [];
 let currentFilter = 'todos';
 let wsReady = false;
@@ -238,7 +239,9 @@ function mergeIncomingPedido(record) {
     return;
   }
 
-  if (record.estado === 'abierto') return; // No mostrar en KDS hasta que se envíe
+  if (record.estado === 'abierto') return;
+  if (record.estado === 'entregado') return; // Ya entregado — ignorar
+  if (doneIds.has(id)) return; // Entregado en esta sesión — no reinstanciar
 
   if (kdsOrders[id]) {
     // Actualizar items si cambiaron, pero conservar estado local y itemsDone
@@ -272,9 +275,11 @@ async function loadPedidos() {
     const pedidos = await sbSel('pos_pedidos',
       'estado=in.(en-cocina,listo)&order=created_at.asc'
     );
+    // Filter out any pedidos already delivered this session (local doneSet guard)
+    const filteredPedidos = pedidos.filter(p => !doneIds.has(p.id));
 
     // Merge: añadir nuevos, actualizar existentes, quitar los que ya no están
-    const incomingIds = new Set(pedidos.map(p => p.id));
+    const incomingIds = new Set(filteredPedidos.map(p => p.id));
 
     // Eliminar los que ya no existen como activos
     Object.keys(kdsOrders).forEach(id => {
@@ -288,7 +293,7 @@ async function loadPedidos() {
     });
 
     // Añadir/actualizar
-    pedidos.forEach(p => {
+    filteredPedidos.forEach(p => {
       if (!kdsOrders[p.id]) {
         kdsOrders[p.id] = {
           id:        p.id,
@@ -409,10 +414,13 @@ async function deliverOrder(oid) {
     ...kdsOrders[oid],
     donAt: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
   });
+  doneIds.add(oid);
   delete kdsOrders[oid];
   renderKDS();
   updatePendingCount();
   renderDoneList();
+  // Marcar como entregado en Supabase para que no vuelva a aparecer
+  try { await sbUpd('pos_pedidos', { id: oid }, { estado: 'entregado' }); } catch(_) {}
 }
 
 function cancelFromKDS(oid) {
@@ -421,6 +429,7 @@ function cancelFromKDS(oid) {
     ...kdsOrders[oid],
     donAt: new Date().toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })
   });
+  doneIds.add(oid);
   delete kdsOrders[oid];
   renderKDS();
   updatePendingCount();
