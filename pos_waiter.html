@@ -627,82 +627,6 @@ function initRealtime() {
 }
 
 // Manejar actualización en tiempo real
-function handleRealtimePedido(record) {
-  // Actualizar cache de pedidos
-  var idx = C.pedidos.findIndex(function(p) { return p.id === record.id; });
-  if (record.estado === 'pagado' || record.estado === 'cancelado') {
-    if (idx >= 0) C.pedidos.splice(idx, 1);
-  } else if (idx >= 0) {
-    C.pedidos[idx] = record;
-  } else if (record.estado !== 'pagado') {
-    C.pedidos.push(record);
-  }
-  renderMesas();
-  // Notificación si un pedido pasa a "listo"
-  if (record.estado === 'listo') {
-    haptic();
-    var mesa = C.mesas.find(function(m) { return m.id === record.mesa_id; });
-    toast('\uD83D\uDD14 Mesa ' + (mesa ? mesa.num : '?') + ' \u2014 platos listos para servir', 'ok');
-  }
-}
-
-// ─── MESAS ───
-async function refreshMesas() {
-  try {
-    C.pedidos = await SB.sel('pos_pedidos', 'estado=in.(abierto,en-cocina,listo)&order=created_at.asc');
-    renderMesas();
-  } catch(e) { toast('Error cargando mesas: ' + e.message, 'err'); }
-}
-
-function renderMesas() {
-  var stOf = function(m) {
-    var p = C.pedidos.find(function(x) { return x.mesa_id === m.id; });
-    if (!p) return 'libre';
-    if (p.estado === 'listo')     return 'listo';
-    if (p.estado === 'en-cocina') return 'cocina';
-    return 'ocupada';
-  };
-  var totalOf = function(m) {
-    var p = C.pedidos.find(function(x) { return x.mesa_id === m.id; });
-    if (!p || !p.items || !p.items.length) return null;
-    return p.items.reduce(function(s,i) { return s + (i.price * i.qty); }, 0).toFixed(2) + ' \u20ac';
-  };
-  var timerOf = function(m) {
-    var p = C.pedidos.find(function(x) { return x.mesa_id === m.id; });
-    if (!p) return '';
-    var mins = Math.floor((Date.now() - new Date(p.created_at).getTime()) / 60000);
-    return mins < 60 ? mins + 'm' : Math.floor(mins/60) + 'h' + (mins%60) + 'm';
-  };
-
-  // Banner notificación platos listos
-  var listosCount = C.pedidos.filter(function(p) { return p.estado === 'listo'; }).length;
-  var banner = document.getElementById('notifBanner');
-  banner.classList.toggle('visible', listosCount > 0);
-  document.getElementById('notifCount').textContent = listosCount;
-
-  var html = '';
-  C.zonas.forEach(function(z) {
-    var zMesas = C.mesas.filter(function(m) { return m.zona_id === z.id; });
-    if (!zMesas.length) return;
-    html += '<div class="zona-label">' + z.icon + ' ' + z.nombre + '</div><div class="mesas-grid">';
-    zMesas.forEach(function(m) {
-      var st = stOf(m), tot = totalOf(m), tmr = timerOf(m);
-      var listoBadge = st === 'listo' ? '<span class="mc-listo-badge">\uD83D\uDD14 LISTO</span>' : '';
-      html += '<div class="mc ' + st + '" onclick="clickMesa(\'' + m.id + '\')">'
-        + listoBadge
-        + '<div class="mc-sdot"></div>'
-        + '<div class="mc-icon">' + (m.icon || '\uD83E\uDEAD') + '</div>'
-        + '<div class="mc-num">Mesa ' + m.num + '</div>'
-        + '<div class="mc-cap">' + m.cap + ' pers.</div>'
-        + (tot ? '<div class="mc-total">' + tot + '</div>' : '')
-        + (tmr ? '<div class="mc-timer">' + tmr + '</div>' : '')
-        + '</div>';
-    });
-    html += '</div>';
-  });
-  document.getElementById('mesasContainer').innerHTML = html || '<div style="padding:40px;text-align:center;color:var(--t3)">No hay mesas configuradas</div>';
-}
-
 async function clickMesa(mid) {
   var mesa = C.mesas.find(function(m) { return m.id === mid; });
   if (!mesa) return;
@@ -902,55 +826,6 @@ function calcCambio() {
   el.style.color = cambio >= 0 ? 'var(--teal)' : 'var(--red)';
 }
 
-async function procesarCobro() {
-  if (metodo === 'efectivo') {
-    var dado = parseFloat(document.getElementById('efecInp').value) || 0;
-    if (dado < getTotal()) { toast('Efectivo insuficiente', 'err'); return; }
-  }
-  load(true);
-  try {
-    var cfgArr = await SB.sel('pos_config', 'id=eq.1');
-    var cfg = cfgArr[0] || {};
-    var newNum = (cfg.lastnum || 0) + 1;
-    await SB.upd('pos_config', {id: 1}, {lastnum: newNum});
-    var numFact = (cfg.serie || 'T') + String(newNum).padStart(6, '0');
-    var b10 = 0, b21 = 0;
-    Object.values(orden).forEach(function(o) {
-      if (o.item.iva === 21) b21 += o.item.price * o.qty / 1.21;
-      else b10 += o.item.price * o.qty / 1.10;
-    });
-    var q10 = b10*0.10, q21 = b21*0.21, total = b10+q10+b21+q21;
-    var items = Object.values(orden).map(function(o) {
-      return { id:o.item.id, name:o.item.name, emoji:o.item.emoji, price:Number(o.item.price), iva:o.item.iva, qty:o.qty, nota:o.nota };
-    });
-    var factura = {
-      id: 'f'+Date.now(), num: numFact,
-      pedido_id: currentPedidoId, mesa_num: currentMesa ? currentMesa.num : null,
-      items: items, metodo_pago: metodo,
-      base10: b10.toFixed(4), iva10: q10.toFixed(4),
-      base21: b21.toFixed(4), iva21: q21.toFixed(4),
-      total: total.toFixed(2),
-      cli_nombre: document.getElementById('fNombre').value,
-      cli_nif:    document.getElementById('fNIF').value,
-      cli_dir: '', user_id: currentUser.id
-    };
-    await SB.ins('pos_facturas', factura);
-    if (currentPedidoId) await SB.upd('pos_pedidos', {id: currentPedidoId}, {estado: 'pagado'});
-    closeM('mCobro');
-    printTicket(factura, cfg);
-    orden = {}; currentPedidoId = null;
-    renderOrden();
-    await refreshMesas();
-    toast('\u2705 Cobro completado \u2014 ' + numFact, 'ok');
-    setTimeout(function() {
-      navTo('mesas', document.getElementById('nt-mesas'));
-      document.getElementById('nt-comanda').style.display = 'none';
-    }, 1200);
-  } catch(e) { toast('Error al cobrar: ' + e.message, 'err'); }
-  finally { load(false); }
-}
-
-// ─── TICKET ───
 function printTicket(f, cfg) {
   var itemsHtml = f.items.map(function(i) {
     return '<div class="t-row"><span>' + i.name.substring(0,22) + ' \u00d7' + i.qty + '</span><span>' + (i.price*i.qty).toFixed(2) + '\u20ac</span></div>';

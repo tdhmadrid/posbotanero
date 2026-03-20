@@ -306,14 +306,7 @@ select.fc option{background:var(--s2);}
         </div>
 
 
-        <!-- QR POR MESA -->
-        <div class="panel" id="panel-qrs">
-          <div class="ph">
-            <div class="ph-left"><h2>QR por mesa</h2><div class="ph-desc">Imprime un QR para cada mesa. El cliente lo escanea para ver la carta y hacer pedidos.</div></div>
-            <button class="btn btn-primary btn-sm" onclick="imprimirTodosQR()">🖨️ Imprimir todos</button>
-          </div>
-          <div id="qrPanelContent"></div>
-        </div>
+      
         <!-- QRS -->
         <div class="panel" id="panel-qrs">
           <div class="ph">
@@ -1339,39 +1332,6 @@ function imprimirQR(mesaId, mesaNum) {
     + 'colorDark:"#000",colorLight:"#fff",correctLevel:QRCode.CorrectLevel.M});'
     + 'setTimeout(function(){window.print();},800);}'
     + '</scr'+'ipt></body></html>');
-  win.document.close();
-}
-
-function imprimirTodosQR() {
-  const mesas = cache.mesas.slice().sort((a,b)=>a.num-b.num);
-  if (!mesas.length) { toast('No hay mesas','err'); return; }
-  const cfg  = cache.config || {};
-  const base = window.location.href.replace(/\/[^/]*$/, '/') + 'pos_qr.html';
-  const pages = mesas.map(m => {
-    const zona = cache.zonas.find(z=>z.id===m.zona_id);
-    const url  = base + '?mesa=' + m.num;
-    return '<div class="page"><div class="rest">' + (cfg.nombre||'Restaurante') + '</div>'
-      + '<div class="num">' + (m.icon||'\uD83E\uDEAD') + ' Mesa ' + m.num + '</div>'
-      + '<div class="zona">' + (zona?zona.icon+' '+zona.nombre:'') + ' &middot; ' + m.cap + ' personas</div>'
-      + '<div class="qrb" id="qr_' + m.id + '"></div>'
-      + '<div class="url">' + url + '</div>'
-      + '<div class="inst">Escanea el QR o ingresa el n\u00famero de mesa en tu navegador</div></div>';
-  }).join('');
-  const initQRs = mesas.map(m =>
-    'new QRCode(document.getElementById("qr_' + m.id + '"),{text:"' + base + '?mesa=' + m.num + '",width:200,height:200,colorDark:"#000",colorLight:"#fff",correctLevel:QRCode.CorrectLevel.M});'
-  ).join('');
-  const win = window.open('','_blank');
-  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>QR Mesas</title>'
-    + '<scr'+'ipt src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></scr'+'ipt>'
-    + '<style>body{font-family:sans-serif;margin:0;background:#fff}'
-    + '.page{display:flex;flex-direction:column;align-items:center;justify-content:center;min-height:100vh;text-align:center;padding:32px;page-break-after:always}'
-    + '.rest{font-size:13px;color:#888;margin-bottom:4px}.num{font-size:42px;font-weight:700;margin-bottom:6px}'
-    + '.zona{font-size:13px;color:#aaa;margin-bottom:20px}.qrb{width:200px;height:200px;margin:0 auto 16px}'
-    + '.url{font-size:9px;color:#ccc;word-break:break-all;max-width:240px}'
-    + '.inst{font-size:12px;color:#666;margin-top:14px;line-height:1.5}</style></head><body>'
-    + pages
-    + '<scr'+'ipt>window.onload=function(){' + initQRs + 'setTimeout(function(){window.print();},1200);}</scr'+'ipt>'
-    + '</body></html>');
   win.document.close();
 }
 
