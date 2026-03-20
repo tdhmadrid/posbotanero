@@ -282,6 +282,7 @@ input,select,textarea{font-family:var(--fb);}
     <div class="tb-right">
       <span class="tb-clock" id="clock">--:--</span>
       <div class="tb-user"><span class="tb-dot"></span><span id="tbName">—</span><span id="tbRole" style="font-size:10px;color:var(--t3)"></span></div>
+      <a href="pos_admin.html" id="btnAdmin" style="display:none;padding:3px 10px;border:1px solid var(--bdr);border-radius:6px;color:var(--gold);font-size:11px;text-decoration:none;transition:.12s" onmouseover="this.style.borderColor='var(--gold)'" onmouseout="this.style.borderColor='var(--bdr)'">⚙️ Admin</a>
       <button class="tb-logout" onclick="doLogout()">Salir</button>
     </div>
   </header>
@@ -560,6 +561,8 @@ function applyRoleRestrictions() {
   document.getElementById('nt-facturas').style.display = canFacturas ? '' : 'none';
   const tabCaja = document.getElementById('nt-caja');
   if (tabCaja) tabCaja.style.display = canCaja ? '' : 'none';
+  const btnAdmin = document.getElementById('btnAdmin');
+  if (btnAdmin) btnAdmin.style.display = rol === 'admin' ? '' : 'none';
 }
 
 // ─── BOOT ───

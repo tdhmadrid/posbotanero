@@ -216,7 +216,10 @@ select.fc option{background:var(--s2);}
         <button class="ni on" id="ni-usuarios" onclick="navTo('usuarios',this)"><span class="ico">&#x1F465;</span>Usuarios</button>
         <button class="ni" id="ni-mesas" onclick="navTo('mesas',this)"><span class="ico">&#x1F5FA;</span>Mapa de mesas</button>
         <button class="ni" id="ni-carta" onclick="navTo('carta',this)"><span class="ico">&#x1F4CB;</span>Carta</button>
-        <div class="sb-sect">Sistema</div>
+        <div class="sb-sect">Abrir módulo</div>
+        <a href="pos_core.html" target="_blank" class="ni" style="text-decoration:none"><span class="ico">🖥️</span>TPV — Mostrador</a>
+        <a href="pos_kds.html"  target="_blank" class="ni" style="text-decoration:none"><span class="ico">🍳</span>KDS — Cocina</a>
+        <a href="pos_qr.html?mesa=1" target="_blank" class="ni" style="text-decoration:none"><span class="ico">📱</span>QR — Mesa 1</a>
         <button class="ni" id="ni-config" onclick="navTo('config',this)"><span class="ico">&#x2699;</span>Configuración</button>
       </nav>
       <div class="sb-bottom">
@@ -238,6 +241,7 @@ select.fc option{background:var(--s2);}
         <div class="tb-clock" id="clock">--:--</div>
         <a href="pos_core.html" class="tb-link tpv" target="_blank">&#x1F5A5; TPV &#x2197;</a>
         <a href="pos_kds.html" class="tb-link kds" target="_blank">&#x1F373; KDS &#x2197;</a>
+        <a href="pos_qr.html?mesa=1" class="tb-link" target="_blank" style="background:rgba(245,158,11,.12);border:1px solid rgba(245,158,11,.2);color:var(--gold);display:flex;align-items:center;gap:5px;padding:6px 11px;border-radius:8px;font-size:12px;font-weight:600;text-decoration:none">&#x1F4F1; QR &#x2197;</a>
       </header>
       <main class="content" id="mainContent">
 
