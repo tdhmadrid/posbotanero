@@ -463,14 +463,15 @@ input,select,textarea{font-family:var(--fb);}
 <div id="ticketPrint"></div>
 <div id="ta"></div>
 <div id="loader"><span>Cargando&#x2026;</span></div>
-<script>/**
+<script>
+/**
  * RestaurantePOS — Print Client v1.0
  * =====================================
  * Módulo JS que intenta imprimir vía el bridge local (pos_print_bridge.py).
  * Si el bridge no está activo, usa window.print() como fallback.
  *
  * Incluir en cada módulo:
- *   <script src="pos_print_client.js"></script>
+ *   <script src="pos_print_client.js"><\/script>
  *   O copiar el contenido inline.
  */
 
@@ -742,7 +743,6 @@ const PosPrint = (() => {
   return { ticket, comanda, cierreCaja, test, status, checkBridge };
 
 })();
-
 
 
 'use strict';

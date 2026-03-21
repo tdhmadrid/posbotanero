@@ -477,14 +477,15 @@ input,select,textarea{font-family:var(--fb);}
 <div id="ticketPrint"></div>
 <div id="ta"></div>
 <div id="loader"><span>Cargando&hellip;</span></div>
-<script>/**
+<script>
+/**
  * RestaurantePOS — Print Client v1.0
  * =====================================
  * Módulo JS que intenta imprimir vía el bridge local (pos_print_bridge.py).
  * Si el bridge no está activo, usa window.print() como fallback.
  *
  * Incluir en cada módulo:
- *   <script src="pos_print_client.js"></script>
+ *   <script src="pos_print_client.js"><\/script>
  *   O copiar el contenido inline.
  */
 
@@ -756,7 +757,6 @@ const PosPrint = (() => {
   return { ticket, comanda, cierreCaja, test, status, checkBridge };
 
 })();
-
 
 
 'use strict';
@@ -1182,6 +1182,101 @@ async function printTicket(f,cfg){
   await PosPrint.ticket(f, cfg, currentUser?currentUser.nombre:'', null);
 }
 
+// ═══════════════════════════════════════════════════════════
+// PLANO DE MESAS — Waiter (solo lectura, click abre mesa)
+// ═══════════════════════════════════════════════════════════
+let waiterZoom = 1;
+let waiterPlanoItems = [];
+const W_ZONA_COLORS = ['#1e3a5f','#1a4731','#3d1a5f','#4a2c0a','#1a3a4a','#4a1a1a'];
+
+async function loadWaiterPlano() {
+  try {
+    waiterPlanoItems = await SB.sel('pos_plano_items','order=created_at.asc').catch(()=>[]);
+    renderWaiterPlano();
+  } catch(e) { renderWaiterPlano(); }
+}
+
+function renderWaiterPlano() {
+  const canvas = document.getElementById('waiterPlanoCanvas');
+  if (!canvas) return;
+  const zonas = C.zonas, mesas = C.mesas;
+  const zonaColorMap = {};
+  zonas.forEach((z,i) => { zonaColorMap[z.id] = W_ZONA_COLORS[i % W_ZONA_COLORS.length]; });
+  const allX = mesas.map(m=>(m.pos_x||100)+90).concat(waiterPlanoItems.map(i=>(i.pos_x||50)+(i.ancho||120)));
+  const allY = mesas.map(m=>(m.pos_y||100)+90).concat(waiterPlanoItems.map(i=>(i.pos_y||50)+(i.alto||40)));
+  const cW = Math.max(800,...(allX.length?allX:[800]))+80;
+  const cH = Math.max(500,...(allY.length?allY:[500]))+80;
+  canvas.style.width = cW+'px'; canvas.style.height = cH+'px';
+  let svg = '<svg style="position:absolute;inset:0;pointer-events:none" width="'+cW+'" height="'+cH+'">';
+  for(let x=20;x<cW;x+=20) for(let y=20;y<cH;y+=20)
+    svg += '<circle cx="'+x+'" cy="'+y+'" r="1" fill="rgba(255,255,255,.05)"/>';
+  svg += '</svg>';
+  let zonasBg = '';
+  zonas.forEach((z,i) => {
+    const zm = mesas.filter(m=>m.zona_id===z.id); if(!zm.length) return;
+    const xs=zm.map(m=>m.pos_x||100), ys=zm.map(m=>m.pos_y||100);
+    const x1=Math.min(...xs)-30, y1=Math.min(...ys)-38, x2=Math.max(...xs)+110, y2=Math.max(...ys)+110;
+    const col=zonaColorMap[z.id]||'#1e3a5f';
+    zonasBg+='<div style="position:absolute;left:'+x1+'px;top:'+y1+'px;width:'+(x2-x1)+'px;height:'+(y2-y1)+'px;background:'+col+'18;border:1px dashed '+col+'44;border-radius:12px;pointer-events:none">'
+      +'<span style="position:absolute;top:5px;left:9px;font-size:10px;font-weight:700;color:'+col+'aa;letter-spacing:1px;text-transform:uppercase">'+z.icon+' '+z.nombre+'</span>'+'</div>';
+  });
+  const ITEM_COLORS={pared:'#555',barra:'#6b4226',ventana:'#4a90a4',puerta:'#8B6914',planta:'#2d6a2d',banos:'#4a5568',mostrador:'#5a4a3a'};
+  let itemsHtml='';
+  waiterPlanoItems.forEach(item=>{
+    const col=item.color||ITEM_COLORS[item.tipo]||'#555';
+    itemsHtml+='<div style="position:absolute;border-radius:6px;display:flex;align-items:center;justify-content:center;pointer-events:none;left:'+(item.pos_x||50)+'px;top:'+(item.pos_y||50)+'px;width:'+(item.ancho||120)+'px;height:'+(item.alto||40)+'px;background:'+col+';opacity:.75">'
+      +'<span style="font-size:10px;font-weight:600;color:#fff;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 4px">'+(item.label||'')+'</span></div>';
+  });
+  let mesasHtml='';
+  mesas.forEach(m=>{
+    const pedido=C.pedidos.find(p=>p.mesa_id===m.id);
+    let st='libre';
+    if(!m.sesion_activa){st='libre';}
+    else if(pedido&&pedido.estado==='listo'){st='listo';}
+    else if(pedido&&pedido.estado==='en-cocina'){st='cocina';}
+    else if(pedido&&pedido.estado==='entregado'){st='entregada';}
+    else if(pedido){st='ocupada';}
+    else{st='abierta';}
+    const round=m.forma==='redonda', wide=m.forma==='rectangular';
+    const w=wide?100:72, h=wide?56:72, bdr=round?'50%':'10px';
+    const col=zonaColorMap[m.zona_id]||'#f59e0b';
+    const tot=(m.sesion_activa&&pedido&&pedido.items)?pedido.items.reduce((s,i)=>s+(i.price*i.qty),0).toFixed(0)+'\u20ac':'';
+    const listoBadge=st==='listo'?'<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--teal);color:#000;font-size:8px;font-weight:800;padding:2px 5px;border-radius:4px;white-space:nowrap">\uD83D\uDD14 LISTO</div>':'';
+    mesasHtml+='<div class="wplano-mesa w-'+st+'" onclick="clickMesaWaiter(\''+m.id+'\')" style="left:'+(m.pos_x||100)+'px;top:'+(m.pos_y||100)+'px;width:'+w+'px;height:'+h+'px;border-radius:'+bdr+'">'
+      +listoBadge+'<div style="font-size:10px;color:'+col+';font-weight:700">'+(m.icon||'\uD83E\uDEAD')+'</div>'
+      +'<div style="font-size:11px;font-weight:700;color:var(--t1)">M'+m.num+'</div>'
+      +(tot?'<div style="font-size:9px;color:var(--gold);font-weight:700">'+tot+'</div>':'')
+      +'</div>';
+  });
+  canvas.innerHTML=zonasBg+svg+itemsHtml+mesasHtml;
+  canvas.style.transform='scale('+waiterZoom+')';
+  canvas.style.transformOrigin='top left';
+}
+
+function waiterSetZoom(z){
+  waiterZoom=Math.round(z*10)/10;
+  const lbl=document.getElementById('waiterZoomLabel');
+  if(lbl)lbl.textContent=Math.round(waiterZoom*100)+'%';
+  const canvas=document.getElementById('waiterPlanoCanvas');
+  if(canvas){canvas.style.transform='scale('+waiterZoom+')';canvas.style.transformOrigin='top left';}
+}
+
+// ─── RESERVAS PRÓXIMAS (Waiter) ───
+async function loadReservasProximas(){
+  try{
+    const hoy=new Date().toISOString().split('T')[0];
+    const proximas=await SB.sel('pos_reservas','fecha=eq.'+hoy+'&estado=in.(pendiente,confirmada)&order=hora.asc&limit=5');
+    const banner=document.getElementById('reservasBanner');
+    if(!banner)return;
+    if(!proximas.length){banner.style.display='none';return;}
+    banner.style.display='flex';
+    const txt=proximas.map(r=>r.hora.slice(0,5)+'h \u2014 '+r.nombre+' ('+r.personas+' pax)').join(' \u00b7 ');
+    document.getElementById('reservasBannerText').textContent='\uD83D\uDCC5 Hoy: '+txt;
+  }catch(_){}
+}
+setInterval(loadReservasProximas,120000);
+
+initLogin();
 
 </script>
 </body>
