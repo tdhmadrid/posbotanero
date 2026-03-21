@@ -212,6 +212,11 @@ select.fc option{background:var(--s2);}
   font-size:10px;cursor:pointer;display:flex;align-items:center;justify-content:center;
   z-index:100;
 }
+
+/* ── RESERVAS TABS ── */
+.res-tab{padding:10px 18px;background:none;border:none;border-bottom:2px solid transparent;font-size:13px;font-weight:600;cursor:pointer;color:var(--t2);font-family:var(--ff);transition:.15s;white-space:nowrap;}
+.res-tab.on{color:var(--gold);border-bottom-color:var(--gold);}
+.res-tab:hover:not(.on){color:var(--t1);}
 </style>
 </head>
 <body>
@@ -308,24 +313,29 @@ select.fc option{background:var(--s2);}
 
         <!-- RESERVACIONES -->
         <div class="panel" id="panel-reservas">
-          <div class="ph" style="flex-shrink:0">
-            <div class="ph-left"><h2>Reservaciones</h2><div class="ph-desc">Gestión de reservas y valoraciones de clientes</div></div>
-            <div style="display:flex;gap:8px;align-items:center">
-              <select id="resFiltroEstado" class="fc" style="width:140px;padding:6px 10px;font-size:12px" onchange="loadReservas()">
-                <option value="">Todos</option>
-                <option value="pendiente">Pendientes</option>
-                <option value="confirmada">Confirmadas</option>
-                <option value="cancelada">Canceladas</option>
-                <option value="completada">Completadas</option>
-                <option value="no_show">No show</option>
-              </select>
-              <input type="date" id="resFiltroFecha" class="fc" style="width:150px;padding:6px 10px;font-size:12px" onchange="loadReservas()">
-              <button class="btn btn-ghost btn-sm" onclick="loadReservas()">&#x21BB;</button>
-              <button class="btn btn-primary" onclick="openReservaModal(null)">+ Nueva reserva</button>
-            </div>
+          <!-- TABS -->
+          <div style="display:flex;gap:0;border-bottom:1px solid var(--bdr);flex-shrink:0;padding:0 0 0">
+            <button id="resTab-lista" class="res-tab on" onclick="switchResTab('lista')">&#x1F4CB; Reservas</button>
+            <button id="resTab-acceso" class="res-tab" onclick="switchResTab('acceso')">&#x1F517; Acceso clientes</button>
+            <button id="resTab-config" class="res-tab" onclick="switchResTab('config')">&#x2699;&#xFE0F; Configuraci&#xF3;n</button>
           </div>
+          <!-- TAB: LISTA -->
+          <div id="resTabLista" style="display:flex;flex-direction:column;flex:1;min-height:0">
           <!-- Stats bar -->
-          <div id="resStats" style="display:flex;gap:10px;flex-shrink:0;flex-wrap:wrap;margin-bottom:2px"></div>
+          <div style="display:flex;gap:8px;align-items:center;flex-shrink:0;padding:10px 0;flex-wrap:wrap">
+            <select id="resFiltroEstado" class="fc" style="width:140px;padding:6px 10px;font-size:12px" onchange="loadReservas()">
+              <option value="">Todos</option>
+              <option value="pendiente">Pendientes</option>
+              <option value="confirmada">Confirmadas</option>
+              <option value="cancelada">Canceladas</option>
+              <option value="completada">Completadas</option>
+              <option value="no_show">No show</option>
+            </select>
+            <input type="date" id="resFiltroFecha" class="fc" style="width:150px;padding:6px 10px;font-size:12px" onchange="loadReservas()">
+            <button class="btn btn-ghost btn-sm" onclick="loadReservas()">&#x21BB;</button>
+            <button class="btn btn-primary btn-sm" onclick="openReservaModal(null)">+ Nueva reserva</button>
+          </div>
+          <div id="resStats"   style="display:flex;gap:10px;flex-shrink:0;flex-wrap:wrap;margin-bottom:2px"></div>
           <!-- Notification banner for new web reservations -->
           <div id="resBanner" style="display:none;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:var(--r);padding:10px 14px;font-size:13px;color:var(--gold);display:none;align-items:center;gap:10px;flex-shrink:0">
             <span style="font-size:18px">&#x1F514;</span>
@@ -336,6 +346,144 @@ select.fc option{background:var(--s2);}
           <div style="flex:1;overflow-y:auto">
             <div id="resTable"></div>
           </div>
+          </div><!-- /resTabLista -->
+
+          <!-- TAB: ACCESO CLIENTES -->
+          <div id="resTabAcceso" style="display:none;flex:1;overflow-y:auto;padding:20px 0">
+            <div style="max-width:600px">
+              <h3 style="font-size:15px;font-weight:700;margin-bottom:6px">&#x1F517; Link p&#xFA;blico de reservas</h3>
+              <p style="font-size:13px;color:var(--t2);margin-bottom:14px;line-height:1.6">
+                Comparte este link con tus clientes para que puedan hacer reservas online. Puedes pegarlo en tu web, Instagram, WhatsApp o imprimirlo en un QR.
+              </p>
+              <div style="background:var(--s1);border:1px solid var(--bdr);border-radius:var(--r);padding:14px;display:flex;align-items:center;gap:10px;margin-bottom:16px">
+                <span style="font-size:13px;font-family:monospace;flex:1;word-break:break-all;color:var(--blue)" id="resPublicUrl">Cargando&#x2026;</span>
+                <button class="btn btn-ghost btn-sm" onclick="copyResUrl()">&#x1F4CB; Copiar</button>
+                <a id="resPublicLink" href="#" target="_blank" class="btn btn-primary btn-sm" style="text-decoration:none">&#x2197; Abrir</a>
+              </div>
+
+              <!-- QR del link -->
+              <div style="display:flex;gap:20px;align-items:flex-start;flex-wrap:wrap">
+                <div style="text-align:center">
+                  <div id="resQRBox" style="background:#fff;border:1px solid var(--bdr);border-radius:var(--r);padding:12px;display:inline-block;margin-bottom:8px"></div>
+                  <br>
+                  <button class="btn btn-ghost btn-sm" onclick="imprimirResQR()">&#x1F5A8; Imprimir QR</button>
+                </div>
+                <div style="flex:1;min-width:200px">
+                  <div style="font-size:12px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">C&#xF3;mo usarlo</div>
+                  <div style="font-size:13px;color:var(--t2);line-height:1.8">
+                    &#x2713; P&#xE9;galo en tu bio de Instagram<br>
+                    &#x2713; Imprime el QR y ponlo en la puerta o mesas<br>
+                    &#x2713; Incl&#xFA;yelo en tu web como enlace<br>
+                    &#x2713; Env&#xED;alo por WhatsApp o email<br>
+                    &#x2713; Agrégalo a tu perfil de Google Maps
+                  </div>
+                </div>
+              </div>
+
+              <hr style="border:none;border-top:1px solid var(--bdr);margin:20px 0">
+
+              <h3 style="font-size:15px;font-weight:700;margin-bottom:6px">&#x1F4CA; Estad&#xED;sticas de reservas web</h3>
+              <div id="resWebStats" style="display:grid;grid-template-columns:repeat(auto-fill,minmax(140px,1fr));gap:10px;margin-top:10px"></div>
+            </div>
+          </div>
+
+          <!-- TAB: CONFIGURACIÓN -->
+          <div id="resTabConfig" style="display:none;flex:1;overflow-y:auto;padding:20px 0">
+            <div style="max-width:560px;display:flex;flex-direction:column;gap:16px">
+
+              <div style="background:var(--s1);border:1px solid var(--bdr);border-radius:var(--r);padding:16px">
+                <div style="font-size:12px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">Estado del m&#xF3;dulo</div>
+                <label style="display:flex;align-items:center;gap:10px;cursor:pointer">
+                  <input type="checkbox" id="cfgResActivo" style="width:18px;height:18px;accent-color:var(--gold)">
+                  <div>
+                    <div style="font-size:14px;font-weight:600">Aceptar reservas online</div>
+                    <div style="font-size:12px;color:var(--t2)">Si está desactivado, el link muestra un mensaje de no disponible</div>
+                  </div>
+                </label>
+              </div>
+
+              <div style="background:var(--s1);border:1px solid var(--bdr);border-radius:var(--r);padding:16px">
+                <div style="font-size:12px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">Horario de reservas</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                  <div class="fg"><label>Desde</label><input type="time" class="fc" id="cfgResDesde" step="1800"></div>
+                  <div class="fg"><label>Hasta</label><input type="time" class="fc" id="cfgResHasta" step="1800"></div>
+                  <div class="fg"><label>Intervalo entre horas (min)</label>
+                    <select class="fc" id="cfgResIntervalo">
+                      <option value="15">Cada 15 min</option>
+                      <option value="30">Cada 30 min</option>
+                      <option value="60">Cada hora</option>
+                    </select>
+                  </div>
+                  <div class="fg"><label>Capacidad m&#xE1;x. por reserva (pax)</label>
+                    <input type="number" class="fc" id="cfgResPaxMax" min="1" max="100" value="20">
+                  </div>
+                </div>
+              </div>
+
+              <div style="background:var(--s1);border:1px solid var(--bdr);border-radius:var(--r);padding:16px">
+                <div style="font-size:12px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">Antelaci&#xF3;n</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+                  <div class="fg">
+                    <label>M&#xED;nima (horas antes)</label>
+                    <input type="number" class="fc" id="cfgResAntMin" min="0" max="168" value="1" step="1">
+                    <div style="font-size:11px;color:var(--t3);margin-top:4px">Tiempo m&#xED;nimo que el cliente debe reservar antes</div>
+                  </div>
+                  <div class="fg">
+                    <label>M&#xE1;xima (d&#xED;as de antelaci&#xF3;n)</label>
+                    <input type="number" class="fc" id="cfgResAntMax" min="1" max="365" value="30" step="1">
+                    <div style="font-size:11px;color:var(--t3);margin-top:4px">Cu&#xE1;ntos d&#xED;as en el futuro puede reservar</div>
+                  </div>
+                </div>
+              </div>
+
+              <div style="background:var(--s1);border:1px solid var(--bdr);border-radius:var(--r);padding:16px">
+                <div style="font-size:12px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">Campos del formulario</div>
+                <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px">
+                  <div class="fg">
+                    <label>Email</label>
+                    <select class="fc" id="cfgResEmail">
+                      <option value="oculto">Oculto</option>
+                      <option value="opcional">Opcional</option>
+                      <option value="obligatorio">Obligatorio</option>
+                    </select>
+                  </div>
+                  <div class="fg">
+                    <label>Nota / Petici&#xF3;n</label>
+                    <select class="fc" id="cfgResNota">
+                      <option value="oculto">Oculto</option>
+                      <option value="opcional">Opcional</option>
+                      <option value="obligatorio">Obligatorio</option>
+                    </select>
+                  </div>
+                  <div class="fg">
+                    <label>Preferencia de zona</label>
+                    <select class="fc" id="cfgResZona">
+                      <option value="oculto">Oculto</option>
+                      <option value="opcional">Opcional</option>
+                      <option value="obligatorio">Obligatorio</option>
+                    </select>
+                  </div>
+                </div>
+              </div>
+
+              <div style="background:var(--s1);border:1px solid var(--bdr);border-radius:var(--r);padding:16px">
+                <div style="font-size:12px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">Mensajes</div>
+                <div class="fg">
+                  <label>Mensaje de confirmaci&#xF3;n (visible al cliente)</label>
+                  <textarea class="fc" id="cfgResMsgConfirm" rows="2"></textarea>
+                </div>
+                <div class="fg">
+                  <label>Pol&#xED;tica de cancelaci&#xF3;n (opcional)</label>
+                  <textarea class="fc" id="cfgResPolitica" rows="3" placeholder="Ejemplo: Las cancelaciones con menos de 24h de antelaci&#xF3;n podr&#xED;an no ser reembolsadas."></textarea>
+                </div>
+              </div>
+
+              <button class="btn btn-primary" onclick="saveResConfig()" style="justify-content:center;padding:13px">
+                &#x1F4BE; Guardar configuraci&#xF3;n de reservas
+              </button>
+            </div>
+          </div>
+
         </div>
 
         <!-- PLANO -->
@@ -2214,6 +2362,137 @@ function initReservasRealtime() {
 
 // Init reservas realtime on boot
 document.addEventListener('DOMContentLoaded', initReservasRealtime);
+
+
+// ─── RESERVAS: TABS ───
+function switchResTab(tab) {
+  ['lista','acceso','config'].forEach(t => {
+    document.getElementById('resTab-'+t)?.classList.toggle('on', t===tab);
+    const el = document.getElementById('resTab'+t.charAt(0).toUpperCase()+t.slice(1));
+    if (el) el.style.display = t===tab ? 'flex' : 'none';
+    // resTabLista uses block/flex
+    if (t === 'lista' && document.getElementById('resTabLista')) {
+      document.getElementById('resTabLista').style.display = t===tab ? 'flex' : 'none';
+    }
+  });
+  if (tab === 'acceso') renderResAcceso();
+  if (tab === 'config') loadResConfig();
+}
+
+// ─── RESERVAS: ACCESO (QR + link) ───
+function renderResAcceso() {
+  const base = window.location.href.replace(/pos_admin\.html.*$/, '').replace(/\/$/, '');
+  const url  = base + '/pos_reservas.html';
+
+  const urlEl  = document.getElementById('resPublicUrl');
+  const linkEl = document.getElementById('resPublicLink');
+  if (urlEl)  urlEl.textContent = url;
+  if (linkEl) linkEl.href = url;
+
+  // QR
+  const box = document.getElementById('resQRBox');
+  if (box) {
+    const qrSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=200x200&ecc=M&data=' + encodeURIComponent(url);
+    box.innerHTML = '<img src="' + qrSrc + '" width="200" height="200" style="border-radius:8px;display:block">';
+  }
+
+  // Web stats
+  const allRes = reservas;
+  const webRes = allRes.filter(r => r.origen === 'web');
+  const ratings = webRes.filter(r => r.rating_restaurante).map(r => r.rating_restaurante);
+  const avg = ratings.length ? (ratings.reduce((s,v)=>s+v,0)/ratings.length).toFixed(1) : '—';
+  const thisMonth = new Date().toISOString().slice(0,7);
+  const mesActual = webRes.filter(r => r.fecha && r.fecha.startsWith(thisMonth)).length;
+
+  const statsEl = document.getElementById('resWebStats');
+  if (statsEl) statsEl.innerHTML = [
+    ['Total web', webRes.length],
+    ['Este mes', mesActual],
+    ['Pendientes', webRes.filter(r=>r.estado==='pendiente').length],
+    ['Valoración', avg + ' ⭐'],
+  ].map(([l,v]) =>
+    '<div style="background:var(--s1);border:1px solid var(--bdr);border-radius:var(--r);padding:10px 14px">'
+    + '<div style="font-size:10px;color:var(--t3);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">' + l + '</div>'
+    + '<div style="font-size:20px;font-weight:700">' + v + '</div></div>'
+  ).join('');
+}
+
+function copyResUrl() {
+  const url = document.getElementById('resPublicUrl')?.textContent || '';
+  navigator.clipboard.writeText(url)
+    .then(() => toast('Link copiado', 'ok'))
+    .catch(() => toast('URL: ' + url, 'inf'));
+}
+
+function imprimirResQR() {
+  const base = window.location.href.replace(/pos_admin\.html.*$/, '').replace(/\/$/, '');
+  const url  = base + '/pos_reservas.html';
+  const cfg  = cache.config || {};
+  const qrSrc = 'https://api.qrserver.com/v1/create-qr-code/?size=280x280&ecc=M&data=' + encodeURIComponent(url);
+  const win = window.open('','_blank','width=420,height=620');
+  win.document.write('<!DOCTYPE html><html><head><meta charset="UTF-8"><title>Reservas QR</title>'
+    + '<style>*{margin:0;padding:0;box-sizing:border-box}body{font-family:sans-serif;text-align:center;padding:40px 32px;background:#fff;color:#000}'
+    + 'h1{font-size:18px;font-weight:700;margin-bottom:4px}p{font-size:13px;color:#666;margin:4px 0 16px}'
+    + 'img{width:240px;height:240px;margin:0 auto 16px;display:block;border-radius:8px}'
+    + '.cta{font-size:16px;font-weight:700;margin:12px 0 4px}.url{font-size:10px;color:#aaa;word-break:break-all}'
+    + '.btn{display:inline-block;margin-top:20px;padding:10px 24px;background:#000;color:#fff;border:none;border-radius:8px;font-size:14px;cursor:pointer}'
+    + '@media print{.btn{display:none}}</style></head><body>'
+    + '<h1>' + (cfg.nombre||'Restaurante') + '</h1>'
+    + '<p>Reserva tu mesa online</p>'
+    + '<img src="' + qrSrc + '" alt="QR Reservas">'
+    + '<div class="cta">&#x1F4F1; Escanea para reservar</div>'
+    + '<div class="url">' + url + '</div>'
+    + '<button class="btn" onclick="window.print()">&#x1F5A8; Imprimir</button>'
+    + '</body></html>');
+  win.document.close();
+}
+
+// ─── RESERVAS: CONFIG ───
+const RES_CFG_MAP = {
+  cfgResActivo:    {field:'res_activo',      type:'check'},
+  cfgResDesde:     {field:'res_hora_desde',  type:'text'},
+  cfgResHasta:     {field:'res_hora_hasta',  type:'text'},
+  cfgResIntervalo: {field:'res_intervalo_min',type:'number'},
+  cfgResPaxMax:    {field:'res_pax_max',     type:'number'},
+  cfgResAntMin:    {field:'res_antelacion_min',type:'number'},
+  cfgResAntMax:    {field:'res_antelacion_max',type:'number'},
+  cfgResEmail:     {field:'res_campo_email', type:'text'},
+  cfgResNota:      {field:'res_campo_nota',  type:'text'},
+  cfgResZona:      {field:'res_campo_zona',  type:'text'},
+  cfgResMsgConfirm:{field:'res_msg_confirmacion',type:'text'},
+  cfgResPolitica:  {field:'res_politica',    type:'text'},
+};
+
+function loadResConfig() {
+  const cfg = cache.config || {};
+  Object.entries(RES_CFG_MAP).forEach(([id, {field, type}]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    const val = cfg[field];
+    if (type === 'check') {
+      el.checked = val !== false; // default true
+    } else {
+      el.value = val !== undefined && val !== null ? val : el.value;
+    }
+  });
+}
+
+async function saveResConfig() {
+  const upd = {};
+  Object.entries(RES_CFG_MAP).forEach(([id, {field, type}]) => {
+    const el = document.getElementById(id);
+    if (!el) return;
+    if (type === 'check')   upd[field] = el.checked;
+    else if (type === 'number') upd[field] = parseFloat(el.value) || 0;
+    else upd[field] = el.value;
+  });
+  try {
+    await SB.upsert('pos_config', {id:1, ...upd}, 'id');
+    Object.assign(cache.config, upd);
+    toast('✅ Configuración de reservas guardada', 'ok');
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
 
 boot();
 </script>

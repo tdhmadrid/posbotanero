@@ -112,7 +112,7 @@ select.fc{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
       </div>
     </div>
 
-    <div class="fg">
+    <div class="fg" id="zonaField">
       <label>¿Tenéis alguna preferencia de zona? (opcional)</label>
       <select class="fc" id="rZona">
         <option value="">Sin preferencia</option>
@@ -136,11 +136,11 @@ select.fc{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
       <label>Teléfono *</label>
       <input type="tel" class="fc" id="rTelefono" placeholder="+34 600 000 000" autocomplete="tel">
     </div>
-    <div class="fg">
+    <div class="fg" id="emailField">
       <label>Email (para recibir confirmación)</label>
       <input type="email" class="fc" id="rEmail" placeholder="ana@email.com" autocomplete="email">
     </div>
-    <div class="fg">
+    <div class="fg" id="notaField">
       <label>Petición especial (alergias, ocasión...)</label>
       <textarea class="fc" id="rNota" rows="3" placeholder="Celebramos un cumpleaños, tenemos alergia al gluten..."></textarea>
     </div>
@@ -210,27 +210,98 @@ async function init(){
       sbSel('pos_config','id=eq.1').then(r=>r[0]||{}),
       sbSel('pos_zonas','order=orden.asc'),
     ]);
+
+    // Check if reservations are active
+    if (cfg.res_activo === false) {
+      showOffline(cfg);
+      return;
+    }
+
     document.getElementById('restNombre').textContent = cfg.nombre || 'Restaurante';
     document.title = 'Reservar en ' + (cfg.nombre || 'Restaurante');
-    // Populate zonas
-    const sel = document.getElementById('rZona');
-    zonas.forEach(z => {
-      const o = document.createElement('option');
-      o.value = z.id; o.textContent = z.icon + ' ' + z.nombre;
-      sel.appendChild(o);
-    });
-    // Set min date = today
-    document.getElementById('rFecha').min = new Date().toISOString().split('T')[0];
-    document.getElementById('rFecha').value = new Date().toISOString().split('T')[0];
+
+    // Apply field visibility from config
+    applyFieldConfig();
+
+    // Populate zonas (only if zona field is not hidden)
+    const zonaField = document.getElementById('zonaField');
+    if (cfg.res_campo_zona === 'oculto') {
+      if (zonaField) zonaField.style.display = 'none';
+    } else {
+      if (cfg.res_campo_zona === 'obligatorio') {
+        const lbl = zonaField?.querySelector('label');
+        if (lbl) lbl.textContent = 'Zona *';
+      }
+      const sel = document.getElementById('rZona');
+      zonas.forEach(z => {
+        const o = document.createElement('option');
+        o.value = z.id; o.textContent = z.icon + ' ' + z.nombre;
+        sel.appendChild(o);
+      });
+    }
+
+    // Date limits from config
+    const hoy = new Date().toISOString().split('T')[0];
+    const minDate = new Date();
+    minDate.setHours(minDate.getHours() + (cfg.res_antelacion_min || 1));
+    const maxDate = new Date();
+    maxDate.setDate(maxDate.getDate() + (cfg.res_antelacion_max || 30));
+    document.getElementById('rFecha').min   = minDate.toISOString().split('T')[0];
+    document.getElementById('rFecha').max   = maxDate.toISOString().split('T')[0];
+    document.getElementById('rFecha').value = minDate.toISOString().split('T')[0];
+
+    // Time input limits
+    if (cfg.res_hora_desde) document.getElementById('rHora').min = cfg.res_hora_desde;
+    if (cfg.res_hora_hasta) document.getElementById('rHora').max = cfg.res_hora_hasta;
+    if (cfg.res_hora_desde) document.getElementById('rHora').value = cfg.res_hora_desde;
+
   } catch(e) { console.error(e); }
   finally { load(false); }
+}
+
+function showOffline(cfg) {
+  document.getElementById('loader').classList.remove('on');
+  document.querySelector('.section').innerHTML =
+    '<div style="text-align:center;padding:60px 20px">'
+    + '<div style="font-size:64px;margin-bottom:16px">&#x1F4C5;</div>'
+    + '<div style="font-size:20px;font-weight:800;margin-bottom:8px">Reservas no disponibles</div>'
+    + '<div style="font-size:14px;color:var(--text2);max-width:300px;margin:0 auto;line-height:1.6">'
+    + 'En este momento no aceptamos reservas online.<br>Por favor llámanos o visítanos directamente.'
+    + (cfg.tel ? '<br><br><strong>' + cfg.tel + '</strong>' : '')
+    + '</div></div>';
+}
+
+function applyFieldConfig() {
+  // Email
+  const emailField = document.getElementById('emailField');
+  if (emailField) {
+    if (cfg.res_campo_email === 'oculto') {
+      emailField.style.display = 'none';
+    } else if (cfg.res_campo_email === 'obligatorio') {
+      const lbl = emailField.querySelector('label');
+      if (lbl) lbl.textContent = 'Email *';
+      const inp = document.getElementById('rEmail');
+      if (inp) inp.required = true;
+    }
+  }
+  // Nota
+  const notaField = document.getElementById('notaField');
+  if (notaField) {
+    if (cfg.res_campo_nota === 'oculto') {
+      notaField.style.display = 'none';
+    } else if (cfg.res_campo_nota === 'obligatorio') {
+      const lbl = notaField.querySelector('label');
+      if (lbl) lbl.textContent = 'Petición especial *';
+    }
+  }
 }
 
 function load(on){ document.getElementById('loader').classList.toggle('on',on); }
 
 // Personas
 function chPersonas(d){
-  personas = Math.max(1, Math.min(20, personas + d));
+  const maxPax = cfg.res_pax_max || 20;
+  personas = Math.max(1, Math.min(maxPax, personas + d));
   document.getElementById('personasVal').textContent = personas;
 }
 
@@ -263,6 +334,12 @@ function validate(step){
   if (step === 1){
     if (!document.getElementById('rNombre').value.trim())   return 'El nombre es obligatorio';
     if (!document.getElementById('rTelefono').value.trim()) return 'El teléfono es obligatorio';
+    if (cfg.res_campo_email === 'obligatorio' && !document.getElementById('rEmail').value.trim())
+      return 'El email es obligatorio';
+    if (cfg.res_campo_nota === 'obligatorio' && !document.getElementById('rNota').value.trim())
+      return 'La petición especial es obligatoria';
+    if (cfg.res_campo_zona === 'obligatorio' && !document.getElementById('rZona').value)
+      return 'Selecciona una preferencia de zona';
     return '';
   }
   return '';
@@ -317,6 +394,10 @@ async function confirmarReserva(){
     document.getElementById('successRef').textContent   = reservaId.slice(-8).toUpperCase();
     document.getElementById('successTel').textContent   = cfg.tel || '';
 
+    if (cfg.res_msg_confirmacion) {
+      document.querySelector('.success-sub').innerHTML = cfg.res_msg_confirmacion
+        + '<br><br>Te esperamos el <strong id="successFecha2"></strong> a las <strong id="successHora2"></strong>.';
+    }
     goStep(3);
     // Show rating after 1s
     setTimeout(() => {
