@@ -258,14 +258,11 @@ select.fc option{background:var(--s2);}
         <button class="ni" id="ni-mesas" onclick="navTo('mesas',this)"><span class="ico">&#x1F5FA;</span>Mapa de mesas</button>
         <button class="ni" id="ni-carta" onclick="navTo('carta',this)"><span class="ico">&#x1F4CB;</span>Carta</button>
         <button class="ni" id="ni-reservas" onclick="navTo('reservas',this)"><span class="ico">&#x1F4C5;</span>Reservaciones</button>
-        <button class="ni" id="ni-plano" onclick="navTo('plano',this)"><span class="ico">&#x1F5FA;&#xFE0F;</span>Plano del local</button>
-        <button class="ni" id="ni-qrs" onclick="navTo('qrs',this)"><span class="ico">&#x1F4F2;</span>QRs de mesas</button>
         <div class="sb-sect">Abrir módulo</div>
         <a href="pos_core.html"   target="_blank" class="ni" style="text-decoration:none"><span class="ico">🖥️</span>TPV — Mostrador</a>
         <a href="pos_kds.html"    target="_blank" class="ni" style="text-decoration:none"><span class="ico">🍳</span>KDS — Cocina</a>
         <a href="pos_waiter.html" target="_blank" class="ni" style="text-decoration:none"><span class="ico">🛎️</span>Mesero — Sala</a>
         <a href="pos_qr.html" target="_blank" class="ni" style="text-decoration:none"><span class="ico">&#x1F4F2;</span>QR Cliente</a>
-        <button class="ni" id="ni-qrs" onclick="navTo('qrs',this)"><span class="ico">&#x1F4F1;</span>QR por mesa</button>
         <button class="ni" id="ni-config" onclick="navTo('config',this)"><span class="ico">&#x2699;</span>Configuración</button>
       </nav>
       <div class="sb-bottom">
@@ -303,12 +300,56 @@ select.fc option{background:var(--s2);}
 
         <!-- MESAS -->
         <div class="panel" id="panel-mesas">
-          <div class="ph">
-            <div class="ph-left"><h2>Mapa de mesas</h2><div class="ph-desc">Zonas y configuración de mesas</div></div>
-            <button class="btn btn-ghost btn-sm" onclick="openZonaModal()">+ Zona</button>
-            <button class="btn btn-primary" onclick="openMesaModal()">+ Mesa</button>
+
+          <!-- TABS: Mesas / Plano / QRs -->
+          <div style="display:flex;gap:0;border-bottom:1px solid var(--bdr);flex-shrink:0">
+            <button id="mesasTab-mesas"  class="res-tab on"  onclick="switchMesasTab('mesas')">&#x1FA91; Zonas y mesas</button>
+            <button id="mesasTab-plano"  class="res-tab"     onclick="switchMesasTab('plano')">&#x1F5FA;&#xFE0F; Plano del local</button>
+            <button id="mesasTab-qrs"    class="res-tab"     onclick="switchMesasTab('qrs')">&#x1F4F2; QRs de mesas</button>
           </div>
-          <div id="mesasLayout"></div>
+
+          <!-- TAB: ZONAS Y MESAS -->
+          <div id="mesasTabMesas" style="flex:1;overflow-y:auto">
+            <div class="ph" style="border-bottom:none;padding-top:12px">
+              <div class="ph-left"><div class="ph-desc">Zonas y configuración de mesas</div></div>
+              <button class="btn btn-ghost btn-sm" onclick="openZonaModal()">+ Zona</button>
+              <button class="btn btn-primary" onclick="openMesaModal()">+ Mesa</button>
+            </div>
+            <div id="mesasLayout"></div>
+          </div>
+
+          <!-- TAB: PLANO -->
+          <div id="mesasTabPlano" style="display:none;flex:1;flex-direction:column;min-height:0">
+            <div class="ph" style="border-bottom:none;padding-top:12px;flex-shrink:0;flex-wrap:wrap;gap:8px">
+              <div style="display:flex;align-items:center;gap:6px">
+                <button id="snapBtn" class="btn btn-ghost btn-sm" onclick="toggleSnap()">&#x229E; Snap ON</button>
+                <button class="btn btn-ghost btn-sm" onclick="setPlanoZoom(Math.max(.5,planoZoom-.25))">&#x2212;</button>
+                <span id="zoomLabel" style="font-size:12px;min-width:38px;text-align:center">100%</span>
+                <button class="btn btn-ghost btn-sm" onclick="setPlanoZoom(Math.min(2,planoZoom+.25))">+</button>
+              </div>
+              <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+                <button class="btn btn-ghost btn-sm" onclick="changeMesaFormaSelected('cuadrada')">&#x25A0; Cuadrada</button>
+                <button class="btn btn-ghost btn-sm" onclick="changeMesaFormaSelected('redonda')">&#x25CF; Redonda</button>
+                <button class="btn btn-ghost btn-sm" onclick="changeMesaFormaSelected('rectangular')">&#x25AC; Rectangular</button>
+                <span style="font-size:10px;color:var(--t3)">Selecciona una mesa para cambiar su forma</span>
+              </div>
+              <button class="btn btn-ghost btn-sm" onclick="openAddItemModal()">&#x1F6CB;&#xFE0F; + Mobiliario</button>
+              <button class="btn btn-ghost btn-sm" onclick="loadPlano()">&#x21BB;</button>
+            </div>
+            <div id="planoWrap" style="flex:1;overflow:auto;border:1px solid var(--bdr);border-radius:var(--r);background:var(--s2);position:relative;min-height:400px;margin:0 0 8px">
+              <div id="planoCanvas" style="position:relative;min-width:900px;min-height:600px;transform-origin:top left"></div>
+            </div>
+          </div>
+
+          <!-- TAB: QRS -->
+          <div id="mesasTabQrs" style="display:none;flex:1;overflow-y:auto">
+            <div class="ph" style="border-bottom:none;padding-top:12px">
+              <div class="ph-left"><div class="ph-desc">Genera e imprime los QRs para cada mesa</div></div>
+              <button class="btn btn-primary" onclick="printAllQRs()">&#x1F5A8; Imprimir todos</button>
+            </div>
+            <div id="qrsLayout"></div>
+          </div>
+
         </div>
 
         <!-- RESERVACIONES -->
@@ -485,37 +526,6 @@ select.fc option{background:var(--s2);}
 
         </div>
 
-        <!-- PLANO -->
-        <div class="panel" id="panel-plano">
-          <div class="ph" style="flex-shrink:0">
-            <div class="ph-left"><h2>Plano del local</h2><div class="ph-desc">Arrastra mesas y elementos para recrear tu sala</div></div>
-            <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
-              <button id="snapBtn" class="btn btn-ghost btn-sm" onclick="toggleSnap()">&#x229E; Snap ON</button>
-              <div style="display:flex;align-items:center;gap:6px">
-                <button class="btn btn-ghost btn-sm" onclick="setPlanoZoom(Math.max(.5,planoZoom-.25))">&#x2212;</button>
-                <span id="zoomLabel" style="font-size:12px;min-width:38px;text-align:center">100%</span>
-                <button class="btn btn-ghost btn-sm" onclick="setPlanoZoom(Math.min(2,planoZoom+.25))">+</button>
-              </div>
-              <button class="btn btn-ghost btn-sm" onclick="openAddItemModal()">&#x1F6CB;&#xFE0F; + Mobiliario</button>
-              <button class="btn btn-ghost btn-sm" onclick="loadPlano()">&#x21BB; Recargar</button>
-            </div>
-          </div>
-
-          <!-- Leyenda formas mesa -->
-          <div style="display:flex;gap:8px;padding:8px 0 10px;flex-shrink:0;flex-wrap:wrap">
-            <div style="font-size:11px;color:var(--t3);font-weight:700;letter-spacing:1px;text-transform:uppercase;align-self:center">Forma de mesa:</div>
-            <button class="btn btn-ghost btn-sm" onclick="changeMesaFormaSelected('cuadrada')">&#x25A0; Cuadrada</button>
-            <button class="btn btn-ghost btn-sm" onclick="changeMesaFormaSelected('redonda')">&#x25CF; Redonda</button>
-            <button class="btn btn-ghost btn-sm" onclick="changeMesaFormaSelected('rectangular')">&#x25AC; Rectangular</button>
-            <div style="font-size:11px;color:var(--t3);margin-left:6px;align-self:center">Selecciona una mesa y cambia su forma</div>
-          </div>
-
-          <!-- Canvas wrapper -->
-          <div id="planoWrap" style="flex:1;overflow:auto;border:1px solid var(--bdr);border-radius:var(--r);background:var(--s2);position:relative;min-height:400px">
-            <div id="planoCanvas" style="position:relative;min-width:900px;min-height:600px;transform-origin:top left"></div>
-          </div>
-        </div>
-
         <!-- CARTA -->
         <div class="panel" id="panel-carta">
           <div class="ph">
@@ -534,18 +544,6 @@ select.fc option{background:var(--s2);}
           </div>
           <div id="configLayout"></div>
         </div>
-
-
-      
-        <!-- QRS -->
-        <div class="panel" id="panel-qrs">
-          <div class="ph">
-            <div class="ph-left"><h2>QRs de mesas</h2><div class="ph-desc">Genera e imprime los QRs para cada mesa</div></div>
-            <button class="btn btn-primary" onclick="printAllQRs()">&#x1F5A8; Imprimir todos</button>
-          </div>
-          <div id="qrsLayout"></div>
-        </div>
-
       </main>
     </div>
   </div>
@@ -935,18 +933,16 @@ function showLoading(on) {
 // ─────────────────────────────────────────
 // NAV
 // ─────────────────────────────────────────
-const TITLES = { usuarios:'Usuarios', mesas:'Mapa de mesas', carta:'Carta', config:'Configuración', qrs:'QRs de mesas', plano:'Plano del local', reservas:'Reservaciones' };
+const TITLES = { usuarios:'Usuarios', mesas:'Mapa de mesas', carta:'Carta', config:'Configuración', reservas:'Reservaciones' };
 function navTo(name, btn) {
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.ni').forEach(b=>b.classList.remove('on'));
   document.getElementById('panel-'+name).classList.add('on');
   (btn||document.getElementById('ni-'+name)).classList.add('on');
   document.getElementById('tbTitle').textContent = TITLES[name]||name;
-  if (name==='mesas')  renderMesas();
-  if (name==='carta')  renderCarta();
-  if (name==='config') { loadConfig(); checkBridgeStatus(); }
-  if (name==='qrs')    renderQRs();
-  if (name==='plano')    loadPlano();
+    if (name==='mesas')    { switchMesasTab('mesas'); }
+  if (name==='carta')    renderCarta();
+  if (name==='config')   { loadConfig(); checkBridgeStatus(); }
   if (name==='reservas') loadReservas();
 }
 
@@ -1105,6 +1101,19 @@ function delUser(uid) {
 // ══════════ MESAS ══════════
 // ─────────────────────────────────────────
 let zFilter = 'all', editMid = null;
+
+// ─── MESAS PANEL TABS ───
+function switchMesasTab(tab) {
+  ['mesas','plano','qrs'].forEach(t => {
+    const btn = document.getElementById('mesasTab-'+t);
+    const el  = document.getElementById('mesasTab'+t.charAt(0).toUpperCase()+t.slice(1));
+    if (btn) btn.classList.toggle('on', t===tab);
+    if (el)  el.style.display = t===tab ? (t==='plano'?'flex':'block') : 'none';
+  });
+  if (tab === 'plano') loadPlano();
+  if (tab === 'qrs')   renderQRs();
+  if (tab === 'mesas') renderMesas();
+}
 
 function renderMesas() {
   const zonas = cache.zonas;

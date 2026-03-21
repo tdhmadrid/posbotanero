@@ -1,4 +1,5 @@
-<!DOCTYPE html>
+
+    <!DOCTYPE html>
 <html lang="es">
 <head>
 <meta charset="UTF-8">
@@ -304,8 +305,8 @@ input,select,textarea{font-family:var(--fb);}
   <header class="topbar">
     <div class="tb-logo">Restaurante<em>POS</em></div>
     <div class="tb-tabs">
-      <button class="nt on" id="nt-mesas" onclick="navTo('mesas',this)">&#x1F5FA; Mesas</button>
-      <button class="nt" id="nt-plano" onclick="navTo('plano',this)">&#x1F4CD; Plano</button>
+      <button class="nt on" id="nt-mesas" onclick="navTo('mesas',this)">&#x1F4CD; Mesas</button>
+      
       <button class="nt" id="nt-comanda" onclick="navTo('comanda',this)" style="display:none">
         &#x1F6D2; Comanda
       </button>
@@ -320,31 +321,19 @@ input,select,textarea{font-family:var(--fb);}
   <div class="app-body">
 
     <!-- MESAS -->
-    <div class="panel on" id="panelMesas">
-      <div class="mesas-scroll">
-        <!-- NOTIF BANNER -->
-        <div class="notif-banner" id="notifBanner">
-          <span class="notif-icon">&#x1F514;</span>
-          <span class="notif-text">Platos listos para servir</span>
-          <span class="notif-count" id="notifCount">0</span>
-        </div>
-        <!-- RESERVAS DEL DÍA -->
-        <div id="reservasBanner" style="display:none;margin-bottom:10px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.25);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--blue);align-items:center;gap:8px">
-          <span>&#x1F4C5;</span>
-          <span id="reservasBannerText">Reservas pr&#xF3;ximas</span>
-        </div>
-        <div class="mesas-header">
-          <h2>Mesas</h2>
-          <button class="btn btn-ghost btn-sm" onclick="refreshMesas()">&#x21BB;</button>
-        </div>
-        <div id="mesasContainer"></div>
+    <!-- PLANO (vista principal de mesas) -->
+    <div class="panel on" id="panelPlano">
+      <!-- Notificaciones -->
+      <div class="notif-banner" id="notifBanner" style="margin:8px 8px 0;border-radius:var(--r)">
+        <span class="notif-icon">&#x1F514;</span>
+        <span class="notif-text">Platos listos para servir</span>
+        <span class="notif-count" id="notifCount">0</span>
       </div>
-    </div>
-
-    <!-- PLANO -->
-    <div class="panel" id="panelPlano">
-      <div style="display:flex;align-items:center;gap:8px;padding:10px 14px 8px;flex-shrink:0;border-bottom:1px solid var(--bdr)">
-        <span style="font-size:13px;font-weight:700;color:var(--t2)">Vista del local</span>
+      <div id="reservasBanner" style="display:none;margin:6px 8px 0;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.25);border-radius:var(--r);padding:8px 12px;font-size:12px;color:var(--blue);align-items:center;gap:8px">
+        <span>&#x1F4C5;</span><span id="reservasBannerText">Reservas pr&#xF3;ximas</span>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;padding:8px 14px 6px;flex-shrink:0;border-bottom:1px solid var(--bdr)">
+        <span style="font-size:12px;font-weight:700;color:var(--t2)">Toca una mesa para abrirla</span>
         <div style="display:flex;align-items:center;gap:4px;margin-left:auto">
           <button class="btn btn-ghost btn-sm" onclick="waiterSetZoom(Math.max(.4,waiterZoom-.2))" style="padding:4px 8px">&#x2212;</button>
           <span id="waiterZoomLabel" style="font-size:11px;min-width:34px;text-align:center;color:var(--t3)">100%</span>
@@ -478,6 +467,8 @@ input,select,textarea{font-family:var(--fb);}
 <div id="ta"></div>
 <div id="loader"><span>Cargando&hellip;</span></div>
 <script>
+
+
 /**
  * RestaurantePOS — Print Client v1.0
  * =====================================
@@ -862,6 +853,7 @@ async function boot(){
 
 // NAV
 function navTo(name,btn){
+  if(name==='mesas')name='plano'; // plano is the main mesas view
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.nt').forEach(b=>b.classList.remove('on'));
   const panel=document.getElementById('panel'+name.charAt(0).toUpperCase()+name.slice(1));
@@ -975,9 +967,8 @@ function renderMesas(){
     });
     html+='</div>';
   });
-  document.getElementById('mesasContainer').innerHTML=html||'<div style="padding:40px;text-align:center;color:var(--t3)">No hay mesas configuradas</div>';
-  // Also re-render plano if visible
-  if(document.getElementById('panelPlano')?.classList.contains('on'))renderWaiterPlano();
+  // Re-render plano (main view)
+  renderWaiterPlano();
 }
 
 async function clickMesa(mid){
@@ -1277,6 +1268,8 @@ async function loadReservasProximas(){
 setInterval(loadReservasProximas,120000);
 
 initLogin();
+
+
 
 </script>
 </body>
