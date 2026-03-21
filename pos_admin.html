@@ -944,7 +944,7 @@ function navTo(name, btn) {
   document.getElementById('tbTitle').textContent = TITLES[name]||name;
   if (name==='mesas')  renderMesas();
   if (name==='carta')  renderCarta();
-  if (name==='config') loadConfig();
+  if (name==='config') { loadConfig(); checkBridgeStatus(); }
   if (name==='qrs')    renderQRs();
   if (name==='plano')    loadPlano();
   if (name==='reservas') loadReservas();
@@ -1552,6 +1552,34 @@ function loadConfig() {
     const el = document.getElementById(id);
     if (el && cfg[k] !== undefined) el.value = cfg[k];
   });
+  renderBridgeWidget();
+}
+
+function renderBridgeWidget() {
+  const layout = document.getElementById('configLayout');
+  if (!layout) return;
+  if (document.getElementById('bridgeWidget')) return; // already rendered
+  const div = document.createElement('div');
+  div.id = 'bridgeWidget';
+  div.style.cssText = 'margin-top:20px;background:var(--s1);border:1px solid var(--bdr);border-radius:var(--r);padding:16px';
+  div.innerHTML =
+    '<div style="font-size:12px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">&#x1F5A8;&#xFE0F; Impresora térmica (Print Bridge)</div>'
+    + '<div style="display:flex;align-items:center;gap:10px;margin-bottom:10px">'
+    +   '<div id="bridgeStatusDot" style="width:10px;height:10px;border-radius:50%;background:var(--bdr);flex-shrink:0"></div>'
+    +   '<span id="bridgeStatusText" style="font-size:13px;color:var(--t2)">Comprobando…</span>'
+    +   '<button class="btn btn-ghost btn-sm" onclick="checkBridgeStatus()" style="margin-left:auto">&#x21BB; Verificar</button>'
+    + '</div>'
+    + '<div style="font-size:12px;color:var(--t3);line-height:1.7;margin-bottom:10px">'
+    +   'Para impresión directa sin diálogo, instala el bridge en el PC del restaurante:<br>'
+    +   '<code style="background:var(--bg);padding:2px 6px;border-radius:4px;font-size:11px">pip install flask flask-cors pyserial</code><br>'
+    +   '<code style="background:var(--bg);padding:2px 6px;border-radius:4px;font-size:11px">python pos_print_bridge.py --printer 192.168.1.100</code>'
+    + '</div>'
+    + '<div style="display:flex;gap:8px;flex-wrap:wrap">'
+    +   '<button class="btn btn-ghost btn-sm" onclick="testBridgePrint()">&#x1F9FE; Imprimir test</button>'
+    +   '<span id="bridgePrinterInfo" style="font-size:11px;color:var(--t3);align-self:center"></span>'
+    + '</div>';
+  layout.appendChild(div);
+  checkBridgeStatus();
 }
 async function saveConfig() {
   const cfg = {};
@@ -2547,6 +2575,45 @@ async function saveResConfig() {
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
+
+
+// ─── PRINT BRIDGE STATUS (Admin) ───
+async function checkBridgeStatus() {
+  const dot  = document.getElementById('bridgeStatusDot');
+  const txt  = document.getElementById('bridgeStatusText');
+  const info = document.getElementById('bridgePrinterInfo');
+  if (dot) dot.style.background = 'var(--gold)';
+  if (txt) txt.textContent = 'Comprobando\u2026';
+  try {
+    const res = await fetch('http://localhost:8765/ping', {
+      cache: 'no-store',
+      signal: AbortSignal.timeout(2000),
+    });
+    const data = await res.json();
+    if (dot) dot.style.background = 'var(--teal)';
+    if (txt) txt.textContent = '\u2713 Bridge activo \u2014 v' + (data.version || '?');
+    if (info) info.textContent = '\uD83D\uDDA8 ' + (data.printer || 'sin impresora');
+  } catch (_) {
+    if (dot) dot.style.background = 'var(--red)';
+    if (txt) txt.textContent = '\u2715 Bridge no activo \u2014 usando impresi\u00f3n del navegador';
+    if (info) info.textContent = '';
+  }
+}
+
+async function testBridgePrint() {
+  try {
+    const res = await fetch('http://localhost:8765/test', {
+      method: 'POST',
+      signal: AbortSignal.timeout(4000),
+    });
+    const d = await res.json();
+    toast(d.ok ? '\u2705 Test impreso correctamente' : '\u274C Error: ' + d.error, d.ok ? 'ok' : 'err');
+  } catch(_) {
+    toast('\u274C Bridge no disponible', 'err');
+  }
+}
+
+// Check on config tab load
 
 boot();
 </script>
