@@ -403,11 +403,10 @@ select.fc option{background:var(--s2);}
               </div>
 
               <div style="background:var(--s1);border:1px solid var(--bdr);border-radius:var(--r);padding:16px">
-                <div style="font-size:12px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">Horario de reservas</div>
-                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
-                  <div class="fg"><label>Desde</label><input type="time" class="fc" id="cfgResDesde" step="1800"></div>
-                  <div class="fg"><label>Hasta</label><input type="time" class="fc" id="cfgResHasta" step="1800"></div>
-                  <div class="fg"><label>Intervalo entre horas (min)</label>
+                <div style="font-size:12px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:14px">Horario por d&#xED;a</div>
+                <div id="horarioGrid" style="display:flex;flex-direction:column;gap:8px"></div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:14px;border-top:1px solid var(--bdr);padding-top:14px">
+                  <div class="fg"><label>Intervalo entre turnos (min)</label>
                     <select class="fc" id="cfgResIntervalo">
                       <option value="15">Cada 15 min</option>
                       <option value="30">Cada 30 min</option>
@@ -2450,8 +2449,6 @@ function imprimirResQR() {
 // ─── RESERVAS: CONFIG ───
 const RES_CFG_MAP = {
   cfgResActivo:    {field:'res_activo',      type:'check'},
-  cfgResDesde:     {field:'res_hora_desde',  type:'text'},
-  cfgResHasta:     {field:'res_hora_hasta',  type:'text'},
   cfgResIntervalo: {field:'res_intervalo_min',type:'number'},
   cfgResPaxMax:    {field:'res_pax_max',     type:'number'},
   cfgResAntMin:    {field:'res_antelacion_min',type:'number'},
@@ -2463,6 +2460,57 @@ const RES_CFG_MAP = {
   cfgResPolitica:  {field:'res_politica',    type:'text'},
 };
 
+const DIAS = [
+  {d:1, nombre:'Lunes'},    {d:2, nombre:'Martes'},
+  {d:3, nombre:'Miércoles'},{d:4, nombre:'Jueves'},
+  {d:5, nombre:'Viernes'},  {d:6, nombre:'Sábado'},
+  {d:0, nombre:'Domingo'},
+];
+const HORARIO_DEFAULT = {activo:true, desde:'13:00', hasta:'23:00'};
+
+function renderHorarioGrid(horario) {
+  const grid = document.getElementById('horarioGrid');
+  if (!grid) return;
+  grid.innerHTML = DIAS.map(({d, nombre}) => {
+    const h = (horario && horario[d]) ? horario[d] : HORARIO_DEFAULT;
+    const activo = h.activo !== false;
+    return '<div style="display:grid;grid-template-columns:110px 1fr;align-items:center;gap:10px;padding:6px 0;border-bottom:1px solid var(--bdr)">'
+      + '<label style="display:flex;align-items:center;gap:8px;cursor:pointer;font-size:13px;font-weight:600">'
+      + '<input type="checkbox" id="hActivo_' + d + '" ' + (activo?'checked':'') + ' onchange="toggleDiaHorario(' + d + ')" style="accent-color:var(--gold);width:16px;height:16px">'
+      + nombre + '</label>'
+      + '<div id="hSlots_' + d + '" style="display:' + (activo?'flex':'none') + ';gap:8px;align-items:center">'
+      + '<input type="time" id="hDesde_' + d + '" value="' + (h.desde||'13:00') + '" step="1800" class="fc" style="padding:5px 8px;font-size:12px;width:100px">'
+      + '<span style="color:var(--t3);font-size:12px">a</span>'
+      + '<input type="time" id="hHasta_' + d + '" value="' + (h.hasta||'23:00') + '" step="1800" class="fc" style="padding:5px 8px;font-size:12px;width:100px">'
+      + '<span style="font-size:11px;color:var(--t3)">hrs</span>'
+      + '</div>'
+      + '<div id="hClosed_' + d + '" style="display:' + (activo?'none':'flex') + ';align-items:center">'
+      + '<span style="font-size:12px;color:var(--red);font-weight:600">Cerrado</span>'
+      + '</div>'
+      + '</div>';
+  }).join('');
+}
+
+function toggleDiaHorario(d) {
+  const activo = document.getElementById('hActivo_' + d)?.checked;
+  const slots  = document.getElementById('hSlots_' + d);
+  const closed = document.getElementById('hClosed_' + d);
+  if (slots)  slots.style.display  = activo ? 'flex' : 'none';
+  if (closed) closed.style.display = activo ? 'none' : 'flex';
+}
+
+function getHorarioFromForm() {
+  const h = {};
+  DIAS.forEach(({d}) => {
+    h[d] = {
+      activo: document.getElementById('hActivo_' + d)?.checked || false,
+      desde:  document.getElementById('hDesde_' + d)?.value || '13:00',
+      hasta:  document.getElementById('hHasta_' + d)?.value || '23:00',
+    };
+  });
+  return h;
+}
+
 function loadResConfig() {
   const cfg = cache.config || {};
   Object.entries(RES_CFG_MAP).forEach(([id, {field, type}]) => {
@@ -2470,11 +2518,15 @@ function loadResConfig() {
     if (!el) return;
     const val = cfg[field];
     if (type === 'check') {
-      el.checked = val !== false; // default true
+      el.checked = val !== false;
     } else {
       el.value = val !== undefined && val !== null ? val : el.value;
     }
   });
+  // Render horario grid
+  let horario = cfg.res_horario;
+  if (typeof horario === 'string') { try { horario = JSON.parse(horario); } catch(_) { horario = null; } }
+  renderHorarioGrid(horario);
 }
 
 async function saveResConfig() {
@@ -2482,10 +2534,12 @@ async function saveResConfig() {
   Object.entries(RES_CFG_MAP).forEach(([id, {field, type}]) => {
     const el = document.getElementById(id);
     if (!el) return;
-    if (type === 'check')   upd[field] = el.checked;
+    if (type === 'check')       upd[field] = el.checked;
     else if (type === 'number') upd[field] = parseFloat(el.value) || 0;
-    else upd[field] = el.value;
+    else                        upd[field] = el.value;
   });
+  // Add horario from grid
+  upd.res_horario = getHorarioFromForm();
   try {
     await SB.upsert('pos_config', {id:1, ...upd}, 'id');
     Object.assign(cache.config, upd);

@@ -241,7 +241,6 @@ async function init(){
     }
 
     // Date limits from config
-    const hoy = new Date().toISOString().split('T')[0];
     const minDate = new Date();
     minDate.setHours(minDate.getHours() + (cfg.res_antelacion_min || 1));
     const maxDate = new Date();
@@ -250,10 +249,9 @@ async function init(){
     document.getElementById('rFecha').max   = maxDate.toISOString().split('T')[0];
     document.getElementById('rFecha').value = minDate.toISOString().split('T')[0];
 
-    // Time input limits
-    if (cfg.res_hora_desde) document.getElementById('rHora').min = cfg.res_hora_desde;
-    if (cfg.res_hora_hasta) document.getElementById('rHora').max = cfg.res_hora_hasta;
-    if (cfg.res_hora_desde) document.getElementById('rHora').value = cfg.res_hora_desde;
+    // Update hora options when date changes
+    document.getElementById('rFecha').addEventListener('change', updateHoraOptions);
+    updateHoraOptions();
 
   } catch(e) { console.error(e); }
   finally { load(false); }
@@ -305,6 +303,53 @@ function chPersonas(d){
   document.getElementById('personasVal').textContent = personas;
 }
 
+// ─── HORARIO POR DÍA ───
+function getHorarioDia(fecha) {
+  const horario = cfg.res_horario || {};
+  if (typeof horario === 'string') {
+    try { return JSON.parse(horario); } catch(_) { return {}; }
+  }
+  const dow = new Date(fecha + 'T12:00:00').getDay(); // 0=dom
+  return horario[dow] || {activo: true, desde: '13:00', hasta: '23:00'};
+}
+
+function updateHoraOptions() {
+  const fecha = document.getElementById('rFecha').value;
+  if (!fecha) return;
+  const h = getHorarioDia(fecha);
+  const horaInp = document.getElementById('rHora');
+
+  if (!h.activo) {
+    // Day is closed — show message
+    horaInp.value = '';
+    horaInp.disabled = true;
+    let msg = document.getElementById('diaClosedMsg');
+    if (!msg) {
+      msg = document.createElement('div');
+      msg.id = 'diaClosedMsg';
+      msg.style.cssText = 'color:#dc2626;font-size:12px;margin-top:4px';
+      horaInp.parentNode.appendChild(msg);
+    }
+    msg.textContent = 'Cerrado este d\u00eda \u2014 elige otra fecha';
+    return;
+  }
+
+  // Day is open — set min/max
+  horaInp.disabled = false;
+  horaInp.min = h.desde || '12:00';
+  horaInp.max = h.hasta || '23:00';
+
+  // Set value to desde if current value is outside range
+  const cur = horaInp.value;
+  if (!cur || cur < horaInp.min || cur > horaInp.max) {
+    horaInp.value = h.desde || '13:00';
+  }
+
+  // Remove closed msg if present
+  const msg = document.getElementById('diaClosedMsg');
+  if (msg) msg.textContent = '';
+}
+
 // Steps
 function goStep(n){
   // Validate current step
@@ -327,8 +372,11 @@ function showErr(step, msg){ const el = document.getElementById('err'+step); if(
 
 function validate(step){
   if (step === 0){
-    if (!document.getElementById('rFecha').value) return 'Selecciona una fecha';
-    if (!document.getElementById('rHora').value)  return 'Selecciona una hora';
+    const fecha = document.getElementById('rFecha').value;
+    if (!fecha) return 'Selecciona una fecha';
+    const h = getHorarioDia(fecha);
+    if (!h.activo) return 'El restaurante está cerrado ese día — elige otra fecha';
+    if (!document.getElementById('rHora').value) return 'Selecciona una hora';
     return '';
   }
   if (step === 1){
