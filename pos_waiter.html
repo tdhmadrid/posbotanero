@@ -247,6 +247,18 @@ input,select,textarea{font-family:var(--fb);}
 .t-row{display:flex;justify-content:space-between;font-size:11px;padding:1px 0;}
 .t-total{display:flex;justify-content:space-between;font-weight:700;font-size:14px;padding:3px 0;}
 .t-foot{text-align:center;font-size:10px;color:#555;margin-top:6px;}
+
+/* ── WAITER PLANO ── */
+.wplano-mesa{position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;cursor:pointer;border-radius:10px;transition:box-shadow .15s, transform .1s;-webkit-user-select:none;user-select:none;}
+.wplano-mesa:active{transform:scale(.93);}
+.wplano-mesa.w-libre{border:2px solid var(--bdr);background:rgba(255,255,255,.06);}
+.wplano-mesa.w-abierta{border:2px solid var(--teal);background:rgba(16,185,129,.1);}
+.wplano-mesa.w-ocupada{border:2px solid var(--gold);background:rgba(245,158,11,.12);}
+.wplano-mesa.w-cocina{border:2px solid var(--blue);background:rgba(96,165,250,.12);}
+.wplano-mesa.w-listo{border:2px solid var(--teal);background:rgba(16,185,129,.2);box-shadow:0 0 0 3px rgba(16,185,129,.3);animation:wpulse 1.5s infinite;}
+.wplano-mesa.w-entregada{border:2px solid var(--bdr);background:rgba(255,255,255,.04);}
+.wplano-item{position:absolute;border-radius:6px;display:flex;align-items:center;justify-content:center;pointer-events:none;}
+@keyframes wpulse{0%,100%{box-shadow:0 0 0 3px rgba(16,185,129,.3);}50%{box-shadow:0 0 0 6px rgba(16,185,129,.1);}}
 </style>
 </head>
 <body>
@@ -293,6 +305,7 @@ input,select,textarea{font-family:var(--fb);}
     <div class="tb-logo">Restaurante<em>POS</em></div>
     <div class="tb-tabs">
       <button class="nt on" id="nt-mesas" onclick="navTo('mesas',this)">&#x1F5FA; Mesas</button>
+      <button class="nt" id="nt-plano" onclick="navTo('plano',this)">&#x1F4CD; Plano</button>
       <button class="nt" id="nt-comanda" onclick="navTo('comanda',this)" style="display:none">
         &#x1F6D2; Comanda
       </button>
@@ -325,6 +338,22 @@ input,select,textarea{font-family:var(--fb);}
           <button class="btn btn-ghost btn-sm" onclick="refreshMesas()">&#x21BB;</button>
         </div>
         <div id="mesasContainer"></div>
+      </div>
+    </div>
+
+    <!-- PLANO -->
+    <div class="panel" id="panelPlano">
+      <div style="display:flex;align-items:center;gap:8px;padding:10px 14px 8px;flex-shrink:0;border-bottom:1px solid var(--bdr)">
+        <span style="font-size:13px;font-weight:700;color:var(--t2)">Vista del local</span>
+        <div style="display:flex;align-items:center;gap:4px;margin-left:auto">
+          <button class="btn btn-ghost btn-sm" onclick="waiterSetZoom(Math.max(.4,waiterZoom-.2))" style="padding:4px 8px">&#x2212;</button>
+          <span id="waiterZoomLabel" style="font-size:11px;min-width:34px;text-align:center;color:var(--t3)">100%</span>
+          <button class="btn btn-ghost btn-sm" onclick="waiterSetZoom(Math.min(2,waiterZoom+.2))" style="padding:4px 8px">+</button>
+        </div>
+        <span style="font-size:11px;color:var(--t3)">Toca una mesa para abrirla</span>
+      </div>
+      <div id="waiterPlanoWrap" style="flex:1;overflow:auto;background:var(--bg2);position:relative">
+        <div id="waiterPlanoCanvas" style="position:relative;min-width:800px;min-height:500px;transform-origin:top left"></div>
       </div>
     </div>
 
@@ -557,6 +586,7 @@ function navTo(name,btn){
   const panel=document.getElementById('panel'+name.charAt(0).toUpperCase()+name.slice(1));
   if(panel)panel.classList.add('on');
   if(btn)btn.classList.add('on');
+  if(name==='plano')loadWaiterPlano();
 }
 
 // REALTIME
@@ -665,6 +695,8 @@ function renderMesas(){
     html+='</div>';
   });
   document.getElementById('mesasContainer').innerHTML=html||'<div style="padding:40px;text-align:center;color:var(--t3)">No hay mesas configuradas</div>';
+  // Also re-render plano if visible
+  if(document.getElementById('panelPlano')?.classList.contains('on'))renderWaiterPlano();
 }
 
 async function clickMesa(mid){
@@ -934,6 +966,123 @@ async function loadReservasProximas() {
   } catch(_) {}
 }
 setInterval(loadReservasProximas, 120000); // refresh every 2min
+
+
+// ═══════════════════════════════════════════════════════════
+// PLANO DE MESAS — Waiter (solo lectura, click abre mesa)
+// ═══════════════════════════════════════════════════════════
+let waiterZoom = 1;
+let waiterPlanoItems = [];
+const W_ZONA_COLORS = ['#1e3a5f','#1a4731','#3d1a5f','#4a2c0a','#1a3a4a','#4a1a1a'];
+
+async function loadWaiterPlano() {
+  try {
+    waiterPlanoItems = await SB.sel('pos_plano_items','order=created_at.asc').catch(()=>[]);
+    renderWaiterPlano();
+  } catch(e) { renderWaiterPlano(); }
+}
+
+function renderWaiterPlano() {
+  const canvas = document.getElementById('waiterPlanoCanvas');
+  if (!canvas) return;
+
+  const zonas = C.zonas;
+  const mesas = C.mesas;
+
+  // Zona color map
+  const zonaColorMap = {};
+  zonas.forEach((z,i) => { zonaColorMap[z.id] = W_ZONA_COLORS[i % W_ZONA_COLORS.length]; });
+
+  // Canvas bounds
+  const allX = mesas.map(m => (m.pos_x||100) + 90).concat(waiterPlanoItems.map(i => (i.pos_x||50) + (i.ancho||120)));
+  const allY = mesas.map(m => (m.pos_y||100) + 90).concat(waiterPlanoItems.map(i => (i.pos_y||50) + (i.alto||40)));
+  const cW = Math.max(800, ...(allX.length?allX:[800])) + 80;
+  const cH = Math.max(500, ...(allY.length?allY:[500])) + 80;
+  canvas.style.width  = cW + 'px';
+  canvas.style.height = cH + 'px';
+
+  // SVG grid dots
+  let svg = '<svg style="position:absolute;inset:0;pointer-events:none" width="'+cW+'" height="'+cH+'">';
+  for (let x=20;x<cW;x+=20) for (let y=20;y<cH;y+=20)
+    svg += '<circle cx="'+x+'" cy="'+y+'" r="1" fill="rgba(255,255,255,.05)"/>';
+  svg += '</svg>';
+
+  // Zona backgrounds
+  let zonasBg = '';
+  zonas.forEach((z,i) => {
+    const zm = mesas.filter(m => m.zona_id === z.id);
+    if (!zm.length) return;
+    const xs = zm.map(m => m.pos_x||100);
+    const ys = zm.map(m => m.pos_y||100);
+    const x1 = Math.min(...xs)-30, y1 = Math.min(...ys)-38;
+    const x2 = Math.max(...xs)+110, y2 = Math.max(...ys)+110;
+    const col = zonaColorMap[z.id]||'#1e3a5f';
+    zonasBg += '<div style="position:absolute;left:'+x1+'px;top:'+y1+'px;width:'+(x2-x1)+'px;height:'+(y2-y1)+'px;background:'+col+'18;border:1px dashed '+col+'44;border-radius:12px;pointer-events:none">'
+      +'<span style="position:absolute;top:5px;left:9px;font-size:10px;font-weight:700;color:'+col+'aa;letter-spacing:1px;text-transform:uppercase">'+z.icon+' '+z.nombre+'</span>'
+      +'</div>';
+  });
+
+  // Mobiliario (static)
+  const ITEM_COLORS = {pared:'#555',barra:'#6b4226',ventana:'#4a90a4',puerta:'#8B6914',planta:'#2d6a2d',banos:'#4a5568',mostrador:'#5a4a3a'};
+  let itemsHtml = '';
+  waiterPlanoItems.forEach(item => {
+    const col = item.color || ITEM_COLORS[item.tipo] || '#555';
+    itemsHtml += '<div class="wplano-item" style="left:'+(item.pos_x||50)+'px;top:'+(item.pos_y||50)+'px;width:'+(item.ancho||120)+'px;height:'+(item.alto||40)+'px;background:'+col+';opacity:.75">'
+      +'<span style="font-size:10px;font-weight:600;color:#fff;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 4px">'+(item.label||'')+'</span>'
+      +'</div>';
+  });
+
+  // Mesas — interactive
+  let mesasHtml = '';
+  mesas.forEach(m => {
+    const pedido = C.pedidos.find(p => p.mesa_id === m.id);
+    let st = 'libre';
+    if (!m.sesion_activa) { st = 'libre'; }
+    else if (pedido && pedido.estado==='listo')     { st = 'listo'; }
+    else if (pedido && pedido.estado==='en-cocina') { st = 'cocina'; }
+    else if (pedido && pedido.estado==='entregado') { st = 'entregada'; }
+    else if (pedido)                                { st = 'ocupada'; }
+    else                                            { st = 'abierta'; }
+
+    const round = m.forma==='redonda';
+    const wide  = m.forma==='rectangular';
+    const w = wide?100:72, h = wide?56:72;
+    const bdr = round?'50%':'10px';
+    const col = zonaColorMap[m.zona_id]||'#f59e0b';
+    const tot = (m.sesion_activa && pedido && pedido.items)
+      ? pedido.items.reduce((s,i)=>s+(i.price*i.qty),0).toFixed(0)+'€' : '';
+    const listoBadge = st==='listo'
+      ? '<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--teal);color:#000;font-size:8px;font-weight:800;padding:2px 5px;border-radius:4px;white-space:nowrap">🔔 LISTO</div>' : '';
+
+    mesasHtml += '<div class="wplano-mesa w-'+st+'" onclick="clickMesaWaiter(\''+m.id+'\')"'
+      +' style="left:'+(m.pos_x||100)+'px;top:'+(m.pos_y||100)+'px;width:'+w+'px;height:'+h+'px;border-radius:'+bdr+'">'
+      + listoBadge
+      +'<div style="font-size:10px;color:'+col+';font-weight:700">'+( m.icon||'🪑')+'</div>'
+      +'<div style="font-size:11px;font-weight:700;color:var(--t1)">M'+m.num+'</div>'
+      +(tot?'<div style="font-size:9px;color:var(--gold);font-weight:700">'+tot+'</div>':'')
+      +'</div>';
+  });
+
+  canvas.innerHTML = zonasBg + svg + itemsHtml + mesasHtml;
+
+  // Apply zoom
+  canvas.style.transform = 'scale('+waiterZoom+')';
+  canvas.style.transformOrigin = 'top left';
+}
+
+function waiterSetZoom(z) {
+  waiterZoom = Math.round(z*10)/10;
+  document.getElementById('waiterZoomLabel').textContent = Math.round(waiterZoom*100)+'%';
+  const canvas = document.getElementById('waiterPlanoCanvas');
+  if (canvas) {
+    canvas.style.transform = 'scale('+waiterZoom+')';
+    canvas.style.transformOrigin = 'top left';
+    // Expand wrap to fit scaled content
+    const cW = parseFloat(canvas.style.width||800);
+    const cH = parseFloat(canvas.style.height||500);
+    document.getElementById('waiterPlanoWrap').style.minHeight = (cH*waiterZoom+40)+'px';
+  }
+}
 
 initLogin();
 </script>
