@@ -252,6 +252,7 @@ select.fc option{background:var(--s2);}
         <button class="ni on" id="ni-usuarios" onclick="navTo('usuarios',this)"><span class="ico">&#x1F465;</span>Usuarios</button>
         <button class="ni" id="ni-mesas" onclick="navTo('mesas',this)"><span class="ico">&#x1F5FA;</span>Mapa de mesas</button>
         <button class="ni" id="ni-carta" onclick="navTo('carta',this)"><span class="ico">&#x1F4CB;</span>Carta</button>
+        <button class="ni" id="ni-reservas" onclick="navTo('reservas',this)"><span class="ico">&#x1F4C5;</span>Reservaciones</button>
         <button class="ni" id="ni-plano" onclick="navTo('plano',this)"><span class="ico">&#x1F5FA;&#xFE0F;</span>Plano del local</button>
         <button class="ni" id="ni-qrs" onclick="navTo('qrs',this)"><span class="ico">&#x1F4F2;</span>QRs de mesas</button>
         <div class="sb-sect">Abrir módulo</div>
@@ -303,6 +304,38 @@ select.fc option{background:var(--s2);}
             <button class="btn btn-primary" onclick="openMesaModal()">+ Mesa</button>
           </div>
           <div id="mesasLayout"></div>
+        </div>
+
+        <!-- RESERVACIONES -->
+        <div class="panel" id="panel-reservas">
+          <div class="ph" style="flex-shrink:0">
+            <div class="ph-left"><h2>Reservaciones</h2><div class="ph-desc">Gestión de reservas y valoraciones de clientes</div></div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <select id="resFiltroEstado" class="fc" style="width:140px;padding:6px 10px;font-size:12px" onchange="loadReservas()">
+                <option value="">Todos</option>
+                <option value="pendiente">Pendientes</option>
+                <option value="confirmada">Confirmadas</option>
+                <option value="cancelada">Canceladas</option>
+                <option value="completada">Completadas</option>
+                <option value="no_show">No show</option>
+              </select>
+              <input type="date" id="resFiltroFecha" class="fc" style="width:150px;padding:6px 10px;font-size:12px" onchange="loadReservas()">
+              <button class="btn btn-ghost btn-sm" onclick="loadReservas()">&#x21BB;</button>
+              <button class="btn btn-primary" onclick="openReservaModal(null)">+ Nueva reserva</button>
+            </div>
+          </div>
+          <!-- Stats bar -->
+          <div id="resStats" style="display:flex;gap:10px;flex-shrink:0;flex-wrap:wrap;margin-bottom:2px"></div>
+          <!-- Notification banner for new web reservations -->
+          <div id="resBanner" style="display:none;background:rgba(245,158,11,.1);border:1px solid rgba(245,158,11,.3);border-radius:var(--r);padding:10px 14px;font-size:13px;color:var(--gold);display:none;align-items:center;gap:10px;flex-shrink:0">
+            <span style="font-size:18px">&#x1F514;</span>
+            <span id="resBannerText">Nueva reserva web</span>
+            <button class="btn btn-ghost btn-sm" onclick="document.getElementById('resBanner').style.display='none'" style="margin-left:auto">&#x2715;</button>
+          </div>
+          <!-- Table -->
+          <div style="flex:1;overflow-y:auto">
+            <div id="resTable"></div>
+          </div>
         </div>
 
         <!-- PLANO -->
@@ -553,6 +586,66 @@ select.fc option{background:var(--s2);}
   </div>
 </div>
 
+<!-- MODAL RESERVA -->
+<div class="movl" id="mReserva">
+  <div class="mbox" style="width:520px;max-height:90vh;overflow-y:auto">
+    <div class="mh" id="mReservaTitle">Nueva reserva</div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="fg"><label>Fecha *</label><input type="date" class="fc" id="resFecha"></div>
+      <div class="fg"><label>Hora *</label><input type="time" class="fc" id="resHora" step="1800" value="21:00"></div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="fg"><label>Personas *</label><input type="number" class="fc" id="resPersonas" min="1" max="50" value="2"></div>
+      <div class="fg"><label>Mesa (opcional)</label>
+        <select class="fc" id="resMesa"><option value="">Sin asignar</option></select>
+      </div>
+    </div>
+    <div class="fg"><label>Nombre del cliente *</label><input type="text" class="fc" id="resNombre" placeholder="Nombre completo"></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="fg"><label>Teléfono</label><input type="tel" class="fc" id="resTel" placeholder="+34 600 000 000"></div>
+      <div class="fg"><label>Email</label><input type="email" class="fc" id="resEmail" placeholder="cliente@email.com"></div>
+    </div>
+    <div class="fg"><label>Nota / petición especial</label><textarea class="fc" id="resNota" rows="2" placeholder="Alergias, ocasión especial..."></textarea></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="fg"><label>Origen</label>
+        <select class="fc" id="resOrigen">
+          <option value="telefono">&#x1F4DE; Teléfono</option>
+          <option value="web">&#x1F310; Web</option>
+          <option value="en_persona">&#x1F464; En persona</option>
+          <option value="otro">Otro</option>
+        </select>
+      </div>
+      <div class="fg"><label>Estado</label>
+        <select class="fc" id="resEstado">
+          <option value="pendiente">Pendiente</option>
+          <option value="confirmada">Confirmada</option>
+          <option value="cancelada">Cancelada</option>
+          <option value="completada">Completada</option>
+          <option value="no_show">No show</option>
+        </select>
+      </div>
+    </div>
+    <hr style="border:none;border-top:1px solid var(--bdr);margin:12px 0">
+    <div style="font-size:11px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:10px">Valoración interna del cliente</div>
+    <div style="display:flex;gap:8px;align-items:center;margin-bottom:8px">
+      <span style="font-size:12px;color:var(--t2)">Calificación:</span>
+      <div id="resRatingStars" style="display:flex;gap:4px">
+        <span style="font-size:22px;cursor:pointer;opacity:.3" onclick="setResRating(1)">&#x2605;</span>
+        <span style="font-size:22px;cursor:pointer;opacity:.3" onclick="setResRating(2)">&#x2605;</span>
+        <span style="font-size:22px;cursor:pointer;opacity:.3" onclick="setResRating(3)">&#x2605;</span>
+        <span style="font-size:22px;cursor:pointer;opacity:.3" onclick="setResRating(4)">&#x2605;</span>
+        <span style="font-size:22px;cursor:pointer;opacity:.3" onclick="setResRating(5)">&#x2605;</span>
+      </div>
+      <span id="resRatingLabel" style="font-size:11px;color:var(--t3)"></span>
+    </div>
+    <div class="fg"><label>Nota interna (no visible al cliente)</label><textarea class="fc" id="resNotaInterna" rows="2" placeholder="Historial, preferencias, comportamiento..."></textarea></div>
+    <div class="mactions">
+      <button class="btn btn-ghost" onclick="closeM('mReserva')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveReserva()" style="flex:1;justify-content:center;padding:11px">Guardar reserva</button>
+    </div>
+  </div>
+</div>
+
 <div id="ta"></div>
 
 <script>
@@ -695,7 +788,7 @@ function showLoading(on) {
 // ─────────────────────────────────────────
 // NAV
 // ─────────────────────────────────────────
-const TITLES = { usuarios:'Usuarios', mesas:'Mapa de mesas', carta:'Carta', config:'Configuración', qrs:'QRs de mesas', plano:'Plano del local' };
+const TITLES = { usuarios:'Usuarios', mesas:'Mapa de mesas', carta:'Carta', config:'Configuración', qrs:'QRs de mesas', plano:'Plano del local', reservas:'Reservaciones' };
 function navTo(name, btn) {
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.ni').forEach(b=>b.classList.remove('on'));
@@ -706,7 +799,8 @@ function navTo(name, btn) {
   if (name==='carta')  renderCarta();
   if (name==='config') loadConfig();
   if (name==='qrs')    renderQRs();
-  if (name==='plano')  loadPlano();
+  if (name==='plano')    loadPlano();
+  if (name==='reservas') loadReservas();
 }
 
 function tick() { document.getElementById('clock').textContent = new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'}); }
@@ -1837,6 +1931,289 @@ function changeMesaFormaSelected(forma) {
   if (!planoSel || planoSel.type !== 'mesa') { toast('Selecciona una mesa primero', 'inf'); return; }
   setMesaForma(planoSel.id, forma);
 }
+
+
+// ═══════════════════════════════════════════════════════════
+// MÓDULO RESERVACIONES — Admin
+// ═══════════════════════════════════════════════════════════
+
+let reservas = [];
+let editingReservaId = null;
+let resRatingVal = 0;
+const ESTADO_COLORS = {
+  pendiente:'var(--gold)',confirmada:'var(--teal)',cancelada:'var(--red)',
+  completada:'var(--blue)',no_show:'var(--t3)'
+};
+const ESTADO_LABELS = {
+  pendiente:'Pendiente',confirmada:'Confirmada',cancelada:'Cancelada',
+  completada:'Completada',no_show:'No show'
+};
+const ORIGEN_ICONS = {telefono:'📞',web:'🌐',en_persona:'👤',otro:'📝'};
+const CLIENT_RATING_LABELS = ['','⭐ VIP','😊 Bueno','😐 Normal','😤 Difícil','🚫 Problemático'];
+
+async function loadReservas() {
+  const estado = document.getElementById('resFiltroEstado')?.value || '';
+  const fecha  = document.getElementById('resFiltroFecha')?.value || '';
+
+  let q = 'order=fecha.asc,hora.asc';
+  if (estado) q += '&estado=eq.' + estado;
+  if (fecha)  q += '&fecha=eq.' + fecha;
+
+  try {
+    reservas = await SB.select('pos_reservas', q);
+    renderReservas();
+    renderResStats();
+    checkNewWebReservas();
+  } catch(e) { toast('Error cargando reservas: ' + e.message, 'err'); }
+}
+
+function renderResStats() {
+  const hoy = new Date().toISOString().split('T')[0];
+  const hoyRes  = reservas.filter(r => r.fecha === hoy);
+  const pending = reservas.filter(r => r.estado === 'pendiente').length;
+  const personas_hoy = hoyRes.filter(r=>r.estado!=='cancelada'&&r.estado!=='no_show').reduce((s,r)=>s+r.personas,0);
+  const ratings = reservas.filter(r => r.rating_restaurante).map(r => r.rating_restaurante);
+  const avgRating = ratings.length ? (ratings.reduce((s,v)=>s+v,0)/ratings.length).toFixed(1) : '—';
+
+  document.getElementById('resStats').innerHTML = [
+    ['📅 Hoy',         hoyRes.length + ' reservas'],
+    ['👥 Personas hoy', personas_hoy],
+    ['⏳ Pendientes',   pending],
+    ['⭐ Valoración media', avgRating + (ratings.length ? ' (' + ratings.length + ')' : '')],
+  ].map(([l,v]) =>
+    '<div style="background:var(--s1);border:1px solid var(--bdr);border-radius:var(--r);padding:10px 14px;min-width:130px">'
+    + '<div style="font-size:10px;color:var(--t3);font-weight:700;letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">' + l + '</div>'
+    + '<div style="font-size:20px;font-weight:700">' + v + '</div></div>'
+  ).join('');
+}
+
+function checkNewWebReservas() {
+  const newWeb = reservas.filter(r => r.origen === 'web' && r.estado === 'pendiente');
+  const banner = document.getElementById('resBanner');
+  if (newWeb.length > 0) {
+    banner.style.display = 'flex';
+    document.getElementById('resBannerText').textContent =
+      '🔔 ' + newWeb.length + ' nueva' + (newWeb.length>1?'s':'') + ' reserva' + (newWeb.length>1?'s':'') + ' desde la web pendiente' + (newWeb.length>1?'s':'') + ' de confirmar';
+  } else {
+    banner.style.display = 'none';
+  }
+}
+
+function renderReservas() {
+  const el = document.getElementById('resTable');
+  if (!reservas.length) {
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--t3)">No hay reservas con estos filtros</div>';
+    return;
+  }
+
+  const hoy = new Date().toISOString().split('T')[0];
+  let html = '<table style="width:100%;border-collapse:collapse">'
+    + '<thead><tr style="background:var(--s2)">'
+    + '<th style="padding:8px 12px;font-size:10px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;text-align:left;border-bottom:1px solid var(--bdr)">Fecha/Hora</th>'
+    + '<th style="padding:8px 12px;font-size:10px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;text-align:left;border-bottom:1px solid var(--bdr)">Cliente</th>'
+    + '<th style="padding:8px 12px;font-size:10px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;text-align:center;border-bottom:1px solid var(--bdr)">Pax</th>'
+    + '<th style="padding:8px 12px;font-size:10px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;text-align:left;border-bottom:1px solid var(--bdr)">Estado</th>'
+    + '<th style="padding:8px 12px;font-size:10px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;text-align:left;border-bottom:1px solid var(--bdr)">Valoraciones</th>'
+    + '<th style="padding:8px 12px;border-bottom:1px solid var(--bdr)"></th>'
+    + '</tr></thead><tbody>';
+
+  reservas.forEach(r => {
+    const esHoy = r.fecha === hoy;
+    const fecha = new Date(r.fecha+'T12:00:00').toLocaleDateString('es-ES',{weekday:'short',day:'numeric',month:'short'});
+    const col   = ESTADO_COLORS[r.estado] || 'var(--t3)';
+    const clientStars = r.rating_cliente
+      ? '⭐'.repeat(r.rating_cliente) + '<span style="font-size:10px;color:var(--t3);margin-left:4px">' + CLIENT_RATING_LABELS[r.rating_cliente] + '</span>'
+      : '<span style="color:var(--t4);font-size:11px">Sin calificar</span>';
+    const guestStars = r.rating_restaurante
+      ? '★'.repeat(r.rating_restaurante) + '☆'.repeat(5-r.rating_restaurante)
+      : '<span style="color:var(--t4);font-size:11px">—</span>';
+
+    html += '<tr style="border-bottom:1px solid var(--bdr);cursor:pointer;transition:.1s" onclick="openReservaModal(\'' + r.id + '\')" onmouseover="this.style.background=\'var(--s2)\'" onmouseout="this.style.background=\'\'">'
+      + '<td style="padding:10px 12px">'
+      + '<div style="font-size:13px;font-weight:700' + (esHoy?';color:var(--gold)':'') + '">' + fecha + (esHoy?' <span style="font-size:10px">HOY</span>':'') + '</div>'
+      + '<div style="font-size:12px;color:var(--t2);font-family:var(--fm)">' + r.hora.slice(0,5) + 'h</div>'
+      + '</td>'
+      + '<td style="padding:10px 12px">'
+      + '<div style="font-size:13px;font-weight:600">' + r.nombre + '</div>'
+      + '<div style="font-size:11px;color:var(--t2)">'
+      + (ORIGEN_ICONS[r.origen]||'') + ' '
+      + (r.telefono||'') + (r.email?' · '+r.email:'')
+      + '</div>'
+      + (r.nota?'<div style="font-size:10px;color:var(--t3);margin-top:2px">📝 '+r.nota+'</div>':'')
+      + '</td>'
+      + '<td style="padding:10px 12px;text-align:center;font-size:14px;font-weight:700">' + r.personas + '</td>'
+      + '<td style="padding:10px 12px">'
+      + '<span style="display:inline-flex;align-items:center;padding:3px 10px;border-radius:99px;font-size:11px;font-weight:700;background:' + col + '22;color:' + col + '">'
+      + ESTADO_LABELS[r.estado] + '</span>'
+      + '</td>'
+      + '<td style="padding:10px 12px">'
+      + '<div style="font-size:11px;margin-bottom:3px">Cliente: ' + clientStars + '</div>'
+      + '<div style="font-size:12px;color:var(--gold)">' + guestStars + '</div>'
+      + (r.comentario_cliente?'<div style="font-size:10px;color:var(--t2);margin-top:2px;max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">💬 '+r.comentario_cliente+'</div>':'')
+      + '</td>'
+      + '<td style="padding:10px 12px">'
+      + '<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();quickEstado(\'' + r.id + '\',\'confirmada\')" title="Confirmar" style="padding:4px 8px">✓</button> '
+      + '<button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();quickEstado(\'' + r.id + '\',\'cancelada\')" title="Cancelar" style="padding:4px 8px;color:var(--red)">✕</button>'
+      + '</td>'
+      + '</tr>';
+  });
+  html += '</tbody></table>';
+  el.innerHTML = html;
+}
+
+// Quick estado change from table
+async function quickEstado(id, estado) {
+  try {
+    await SB.update('pos_reservas', {id}, {estado, updated_at: new Date().toISOString()});
+    const r = reservas.find(x => x.id === id);
+    if (r) r.estado = estado;
+    renderReservas();
+    renderResStats();
+    toast('Reserva ' + ESTADO_LABELS[estado].toLowerCase(), 'ok');
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+// Open modal
+function openReservaModal(id) {
+  editingReservaId = id;
+  resRatingVal = 0;
+
+  // Populate mesas selector
+  const mesaSel = document.getElementById('resMesa');
+  mesaSel.innerHTML = '<option value="">Sin asignar</option>';
+  cache.mesas.forEach(m => {
+    const o = document.createElement('option');
+    o.value = m.id;
+    o.textContent = 'Mesa ' + m.num + ' (' + m.cap + ' pers.)';
+    mesaSel.appendChild(o);
+  });
+
+  if (id) {
+    const r = reservas.find(x => x.id === id);
+    if (!r) return;
+    document.getElementById('mReservaTitle').textContent = 'Reserva — ' + r.nombre;
+    document.getElementById('resFecha').value    = r.fecha;
+    document.getElementById('resHora').value     = r.hora.slice(0,5);
+    document.getElementById('resPersonas').value = r.personas;
+    document.getElementById('resMesa').value     = r.mesa_id || '';
+    document.getElementById('resNombre').value   = r.nombre;
+    document.getElementById('resTel').value      = r.telefono || '';
+    document.getElementById('resEmail').value    = r.email || '';
+    document.getElementById('resNota').value     = r.nota || '';
+    document.getElementById('resOrigen').value   = r.origen || 'telefono';
+    document.getElementById('resEstado').value   = r.estado || 'pendiente';
+    document.getElementById('resNotaInterna').value = r.nota_interna || '';
+    resRatingVal = r.rating_cliente || 0;
+    updateResRatingUI();
+    // Show guest rating if exists
+  } else {
+    document.getElementById('mReservaTitle').textContent = 'Nueva reserva';
+    document.getElementById('resFecha').value    = new Date().toISOString().split('T')[0];
+    document.getElementById('resHora').value     = '21:00';
+    document.getElementById('resPersonas').value = 2;
+    document.getElementById('resMesa').value     = '';
+    document.getElementById('resNombre').value   = '';
+    document.getElementById('resTel').value      = '';
+    document.getElementById('resEmail').value    = '';
+    document.getElementById('resNota').value     = '';
+    document.getElementById('resOrigen').value   = 'telefono';
+    document.getElementById('resEstado').value   = 'pendiente';
+    document.getElementById('resNotaInterna').value = '';
+    resRatingVal = 0;
+    updateResRatingUI();
+  }
+  openM('mReserva');
+}
+
+function setResRating(n) {
+  resRatingVal = n;
+  updateResRatingUI();
+}
+const CLIENT_RATING_NAMES = ['','⭐ VIP','😊 Bueno','😐 Normal','😤 Difícil','🚫 Problemático'];
+function updateResRatingUI() {
+  document.querySelectorAll('#resRatingStars span').forEach((s,i) => {
+    s.style.opacity = i < resRatingVal ? '1' : '.3';
+    s.style.color = i < resRatingVal ? 'var(--gold)' : '';
+  });
+  document.getElementById('resRatingLabel').textContent = CLIENT_RATING_NAMES[resRatingVal] || '';
+}
+
+async function saveReserva() {
+  const nombre = document.getElementById('resNombre').value.trim();
+  const fecha  = document.getElementById('resFecha').value;
+  if (!nombre) { toast('El nombre es obligatorio', 'err'); return; }
+  if (!fecha)  { toast('La fecha es obligatoria', 'err'); return; }
+
+  const row = {
+    fecha,
+    hora:          document.getElementById('resHora').value + ':00',
+    nombre,
+    telefono:      document.getElementById('resTel').value.trim(),
+    email:         document.getElementById('resEmail').value.trim(),
+    personas:      parseInt(document.getElementById('resPersonas').value) || 2,
+    mesa_id:       document.getElementById('resMesa').value || null,
+    nota:          document.getElementById('resNota').value.trim(),
+    origen:        document.getElementById('resOrigen').value,
+    estado:        document.getElementById('resEstado').value,
+    nota_interna:  document.getElementById('resNotaInterna').value.trim(),
+    rating_cliente: resRatingVal || null,
+    updated_at:    new Date().toISOString(),
+  };
+
+  try {
+    if (editingReservaId) {
+      await SB.update('pos_reservas', {id: editingReservaId}, row);
+      toast('Reserva actualizada', 'ok');
+    } else {
+      row.id = 'res_' + Date.now();
+      row.origen = row.origen || 'en_persona';
+      await SB.insert('pos_reservas', row);
+      toast('Reserva creada', 'ok');
+    }
+    closeM('mReserva');
+    await loadReservas();
+  } catch(e) { toast('Error: ' + e.message, 'err'); }
+}
+
+// Realtime for new web reservations
+function initReservasRealtime() {
+  const wsUrl = 'wss://seomuaorrpowiahhniap.supabase.co/realtime/v1/websocket?apikey=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNlb211YW9ycnBvd2lhaGhuaWFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NTg5MTksImV4cCI6MjA4OTUzNDkxOX0.plE0bONF4z3YLvuNGCxRea09lNOGOh3KMN2jOndVJ8E&vsn=1.0.0';
+  function connect() {
+    const ws = new WebSocket(wsUrl);
+    ws.onopen = () => ws.send(JSON.stringify({
+      topic:'realtime:public:pos_reservas', event:'phx_join',
+      payload:{config:{postgres_changes:[{event:'INSERT',schema:'public',table:'pos_reservas'}]}}, ref:'res1'
+    }));
+    ws.onmessage = e => {
+      try {
+        const msg = JSON.parse(e.data);
+        if (msg.event === 'postgres_changes') {
+          const r = msg.payload?.data?.record;
+          if (r && r.origen === 'web') {
+            // Show banner immediately
+            const banner = document.getElementById('resBanner');
+            if (banner) {
+              banner.style.display = 'flex';
+              document.getElementById('resBannerText').textContent =
+                '🔔 Nueva reserva web de ' + r.nombre + ' — ' + r.fecha + ' ' + (r.hora||'').slice(0,5) + 'h — ' + r.personas + ' personas';
+            }
+            // Reload if on reservas panel
+            if (document.getElementById('panel-reservas')?.classList.contains('on')) {
+              loadReservas();
+            }
+          }
+        }
+      } catch(_) {}
+    };
+    ws.onclose = () => setTimeout(connect, 5000);
+    ws.onerror = () => {};
+  }
+  connect();
+}
+
+
+// Init reservas realtime on boot
+document.addEventListener('DOMContentLoaded', initReservasRealtime);
 
 boot();
 </script>

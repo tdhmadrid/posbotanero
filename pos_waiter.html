@@ -315,6 +315,11 @@ input,select,textarea{font-family:var(--fb);}
           <span class="notif-text">Platos listos para servir</span>
           <span class="notif-count" id="notifCount">0</span>
         </div>
+        <!-- RESERVAS DEL DÍA -->
+        <div id="reservasBanner" style="display:none;margin-bottom:10px;background:rgba(59,130,246,.1);border:1px solid rgba(59,130,246,.25);border-radius:var(--r);padding:10px 14px;font-size:12px;color:var(--blue);align-items:center;gap:8px">
+          <span>&#x1F4C5;</span>
+          <span id="reservasBannerText">Reservas pr&#xF3;ximas</span>
+        </div>
         <div class="mesas-header">
           <h2>Mesas</h2>
           <button class="btn btn-ghost btn-sm" onclick="refreshMesas()">&#x21BB;</button>
@@ -540,6 +545,7 @@ async function boot(){
     await refreshMesas();
     buildCatPills();buildItemsGrid('all');
     initRealtime();
+    loadReservasProximas();
   }catch(e){toast('Error al arrancar: '+e.message,'err');}
   finally{load(false);}
 }
@@ -909,6 +915,25 @@ function printTicket(f,cfg){
     +'<div class="t-foot" style="font-size:9px">Factura simplificada \u00b7 Art.4.1 RD 1619/2012</div></div>';
   window.print();
 }
+
+// ─── RESERVAS PRÓXIMAS (Waiter) ───
+async function loadReservasProximas() {
+  try {
+    const hoy = new Date().toISOString().split('T')[0];
+    const proximas = await SB.sel('pos_reservas',
+      'fecha=eq.' + hoy + '&estado=in.(pendiente,confirmada)&order=hora.asc&limit=5'
+    );
+    const banner = document.getElementById('reservasBanner');
+    if (!banner) return;
+    if (proximas.length === 0) { banner.style.display = 'none'; return; }
+    banner.style.display = 'flex';
+    const txt = proximas.map(r =>
+      r.hora.slice(0,5) + 'h \u2014 ' + r.nombre + ' (' + r.personas + ' pax)'
+    ).join(' \u00b7 ');
+    document.getElementById('reservasBannerText').textContent = '\uD83D\uDCC5 Hoy: ' + txt;
+  } catch(_) {}
+}
+setInterval(loadReservasProximas, 120000); // refresh every 2min
 
 initLogin();
 </script>

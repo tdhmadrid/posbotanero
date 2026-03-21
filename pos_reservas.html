@@ -1,0 +1,349 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Cache-Control" content="no-cache">
+<title>Reservar mesa</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+:root{--bg:#fafaf8;--surface:#fff;--border:#e8e6e0;--accent:#d4770a;--text:#1a1a18;--text2:#6b6b65;--text3:#a8a89e;--radius:14px;--font:'Plus Jakarta Sans',sans-serif;--safe:env(safe-area-inset-bottom,0px);}
+*{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:100vh;max-width:520px;margin:0 auto;padding-bottom:calc(20px + var(--safe));}
+.header{padding:24px 20px 16px;border-bottom:1px solid var(--border);background:var(--surface);position:sticky;top:0;z-index:10;}
+.rest-name{font-size:22px;font-weight:800;letter-spacing:-.5px;}
+.rest-sub{font-size:13px;color:var(--text2);margin-top:2px;}
+.section{padding:20px;}
+.step-indicator{display:flex;gap:6px;align-items:center;margin-bottom:20px;}
+.step-dot{width:8px;height:8px;border-radius:50%;background:var(--border);transition:.2s;}
+.step-dot.on{background:var(--accent);width:24px;border-radius:4px;}
+.step-dot.done{background:var(--accent);opacity:.4;}
+h2{font-size:18px;font-weight:800;margin-bottom:6px;}
+.subtitle{font-size:13px;color:var(--text2);margin-bottom:20px;line-height:1.5;}
+.fg{margin-bottom:14px;}
+label{display:block;font-size:12px;font-weight:700;color:var(--text2);margin-bottom:5px;letter-spacing:.3px;}
+.fc{width:100%;background:var(--surface);border:1.5px solid var(--border);border-radius:10px;padding:12px 14px;font-size:15px;color:var(--text);font-family:var(--font);transition:.15s;-webkit-appearance:none;}
+.fc:focus{outline:none;border-color:var(--accent);}
+textarea.fc{resize:none;line-height:1.5;}
+select.fc{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 12 12'%3E%3Cpath fill='%236b6b65' d='M6 8L1 3h10z'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 14px center;padding-right:36px;}
+/* Date/time grid */
+.date-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+/* Persons selector */
+.persons-ctrl{display:flex;align-items:center;gap:14px;}
+.p-btn{width:40px;height:40px;border-radius:50%;border:1.5px solid var(--border);background:var(--surface);font-size:22px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;transition:.12s;color:var(--text);}
+.p-btn:active{background:var(--border);}
+.p-val{font-size:28px;font-weight:800;min-width:36px;text-align:center;}
+/* Origin pills */
+.origin-pills{display:flex;gap:8px;flex-wrap:wrap;}
+.origin-pill{padding:8px 16px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);font-size:13px;font-weight:600;cursor:pointer;color:var(--text2);transition:.12s;}
+.origin-pill.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+/* Summary card */
+.summary-card{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:16px;margin-bottom:16px;}
+.summary-row{display:flex;gap:10px;padding:6px 0;font-size:14px;border-bottom:1px solid var(--border);}
+.summary-row:last-child{border-bottom:none;}
+.summary-label{color:var(--text2);min-width:90px;flex-shrink:0;}
+.summary-val{font-weight:600;flex:1;}
+/* Buttons */
+.btn-primary{width:100%;padding:16px;background:var(--accent);border:none;border-radius:14px;color:#fff;font-size:16px;font-weight:800;cursor:pointer;font-family:var(--font);transition:.12s;letter-spacing:-.2px;}
+.btn-primary:active{opacity:.85;}
+.btn-primary:disabled{opacity:.5;cursor:not-allowed;}
+.btn-ghost{width:100%;padding:14px;background:none;border:1.5px solid var(--border);border-radius:14px;color:var(--text2);font-size:14px;font-weight:600;cursor:pointer;font-family:var(--font);margin-top:8px;}
+/* Steps */
+.step{display:none;} .step.on{display:block;}
+/* Success */
+.success-icon{font-size:64px;text-align:center;margin:20px 0 12px;}
+.success-title{font-size:24px;font-weight:800;text-align:center;margin-bottom:8px;}
+.success-sub{font-size:14px;color:var(--text2);text-align:center;line-height:1.6;margin-bottom:24px;}
+.ref-badge{background:var(--accent)22;border:1px solid var(--accent)44;border-radius:10px;padding:12px 16px;text-align:center;font-family:monospace;font-size:15px;font-weight:700;color:var(--accent);margin-bottom:20px;}
+/* Stars */
+.stars{display:flex;gap:8px;justify-content:center;margin:12px 0;}
+.star{font-size:36px;cursor:pointer;transition:.12s;opacity:.3;}
+.star.on,.star:hover{opacity:1;}
+.rating-form{background:var(--surface);border:1.5px solid var(--border);border-radius:var(--radius);padding:20px;margin-top:20px;}
+.rating-form h3{font-size:16px;font-weight:800;margin-bottom:6px;text-align:center;}
+.rating-sub{font-size:13px;color:var(--text2);text-align:center;margin-bottom:14px;}
+/* Error */
+.err-msg{color:#dc2626;font-size:12px;margin-top:4px;}
+/* Loader */
+.loader{display:none;position:fixed;inset:0;background:rgba(250,250,248,.85);z-index:999;align-items:center;justify-content:center;font-size:14px;color:var(--text2);}
+.loader.on{display:flex;}
+</style>
+</head>
+<body>
+
+<div class="loader" id="loader"><div>Un momento&#x2026;</div></div>
+
+<header class="header">
+  <div class="rest-name" id="restNombre">Restaurante</div>
+  <div class="rest-sub">Reserva tu mesa online</div>
+</header>
+
+<div class="section">
+  <!-- STEP INDICATORS -->
+  <div class="step-indicator">
+    <div class="step-dot on"  id="dot0"></div>
+    <div class="step-dot"     id="dot1"></div>
+    <div class="step-dot"     id="dot2"></div>
+  </div>
+
+  <!-- STEP 0: Fecha, hora, personas -->
+  <div class="step on" id="step0">
+    <h2>¿Cuándo venís?</h2>
+    <p class="subtitle">Elige fecha, hora y número de personas.</p>
+
+    <div class="fg date-grid">
+      <div>
+        <label>Fecha</label>
+        <input type="date" class="fc" id="rFecha" min="">
+      </div>
+      <div>
+        <label>Hora</label>
+        <input type="time" class="fc" id="rHora" value="21:00" step="1800">
+      </div>
+    </div>
+
+    <div class="fg">
+      <label>Personas</label>
+      <div class="persons-ctrl">
+        <button class="p-btn" onclick="chPersonas(-1)">&#x2212;</button>
+        <span class="p-val" id="personasVal">2</span>
+        <button class="p-btn" onclick="chPersonas(1)">+</button>
+      </div>
+    </div>
+
+    <div class="fg">
+      <label>¿Tenéis alguna preferencia de zona? (opcional)</label>
+      <select class="fc" id="rZona">
+        <option value="">Sin preferencia</option>
+      </select>
+    </div>
+
+    <div id="err0" class="err-msg"></div>
+    <button class="btn-primary" onclick="goStep(1)">Continuar &#x2192;</button>
+  </div>
+
+  <!-- STEP 1: Datos personales -->
+  <div class="step" id="step1">
+    <h2>Tus datos</h2>
+    <p class="subtitle">Para confirmar la reserva necesitamos tus datos de contacto.</p>
+
+    <div class="fg">
+      <label>Nombre completo *</label>
+      <input type="text" class="fc" id="rNombre" placeholder="Ana García" autocomplete="name">
+    </div>
+    <div class="fg">
+      <label>Teléfono *</label>
+      <input type="tel" class="fc" id="rTelefono" placeholder="+34 600 000 000" autocomplete="tel">
+    </div>
+    <div class="fg">
+      <label>Email (para recibir confirmación)</label>
+      <input type="email" class="fc" id="rEmail" placeholder="ana@email.com" autocomplete="email">
+    </div>
+    <div class="fg">
+      <label>Petición especial (alergias, ocasión...)</label>
+      <textarea class="fc" id="rNota" rows="3" placeholder="Celebramos un cumpleaños, tenemos alergia al gluten..."></textarea>
+    </div>
+
+    <div id="err1" class="err-msg"></div>
+    <button class="btn-primary" onclick="goStep(2)">Revisar reserva &#x2192;</button>
+    <button class="btn-ghost" onclick="goStep(0)">&#x2190; Volver</button>
+  </div>
+
+  <!-- STEP 2: Confirmación -->
+  <div class="step" id="step2">
+    <h2>Confirmar reserva</h2>
+    <p class="subtitle">Revisa los datos antes de confirmar.</p>
+
+    <div class="summary-card" id="summaryCard"></div>
+
+    <div id="err2" class="err-msg"></div>
+    <button class="btn-primary" id="btnConfirmar" onclick="confirmarReserva()">&#x2713; Confirmar reserva</button>
+    <button class="btn-ghost" onclick="goStep(1)">&#x2190; Volver</button>
+  </div>
+
+  <!-- STEP 3: Éxito -->
+  <div class="step" id="step3">
+    <div class="success-icon">&#x1F3C6;</div>
+    <div class="success-title">¡Reserva confirmada!</div>
+    <p class="success-sub">Hemos recibido tu reserva. Te esperamos el <strong id="successFecha"></strong> a las <strong id="successHora"></strong>.</p>
+    <div class="ref-badge">Ref: <span id="successRef"></span></div>
+    <p style="font-size:12px;color:var(--text3);text-align:center;margin-bottom:16px">Guarda esta referencia para cualquier consulta · <span id="successTel"></span></p>
+
+    <!-- Rating widget (aparece inmediatamente para recoger feedback) -->
+    <div class="rating-form" id="ratingForm" style="display:none">
+      <h3>&#x1F31F; ¿Cómo valorarías el proceso de reserva?</h3>
+      <p class="rating-sub">Tu opinión nos ayuda a mejorar</p>
+      <div class="stars" id="preStars">
+        <span class="star" onclick="setPreRating(1)">&#x2605;</span>
+        <span class="star" onclick="setPreRating(2)">&#x2605;</span>
+        <span class="star" onclick="setPreRating(3)">&#x2605;</span>
+        <span class="star" onclick="setPreRating(4)">&#x2605;</span>
+        <span class="star" onclick="setPreRating(5)">&#x2605;</span>
+      </div>
+      <p class="rating-sub" id="ratingLabel" style="min-height:20px"></p>
+    </div>
+
+    <button class="btn-ghost" style="margin-top:16px" onclick="location.reload()">Hacer otra reserva</button>
+  </div>
+
+</div>
+
+<script>
+'use strict';
+const SUPA_URL = 'https://seomuaorrpowiahhniap.supabase.co';
+const SUPA_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InNlb211YW9ycnBvd2lhaGhuaWFwIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzM5NTg5MTksImV4cCI6MjA4OTUzNDkxOX0.plE0bONF4z3YLvuNGCxRea09lNOGOh3KMN2jOndVJ8E';
+const HDR = {'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type':'application/json','Prefer':'return=representation'};
+
+async function sbSel(t,q=''){const r=await fetch(SUPA_URL+'/rest/v1/'+t+'?'+q,{headers:HDR});if(!r.ok)throw new Error(await r.text());return r.json();}
+async function sbIns(t,b){const r=await fetch(SUPA_URL+'/rest/v1/'+t,{method:'POST',headers:HDR,body:JSON.stringify(b)});if(!r.ok)throw new Error(await r.text());return r.json();}
+
+// State
+let personas = 2, currentStep = 0, reservaId = null, preRating = 0;
+let cfg = {}, zonas = [];
+
+// Init
+async function init(){
+  load(true);
+  try {
+    [cfg, zonas] = await Promise.all([
+      sbSel('pos_config','id=eq.1').then(r=>r[0]||{}),
+      sbSel('pos_zonas','order=orden.asc'),
+    ]);
+    document.getElementById('restNombre').textContent = cfg.nombre || 'Restaurante';
+    document.title = 'Reservar en ' + (cfg.nombre || 'Restaurante');
+    // Populate zonas
+    const sel = document.getElementById('rZona');
+    zonas.forEach(z => {
+      const o = document.createElement('option');
+      o.value = z.id; o.textContent = z.icon + ' ' + z.nombre;
+      sel.appendChild(o);
+    });
+    // Set min date = today
+    document.getElementById('rFecha').min = new Date().toISOString().split('T')[0];
+    document.getElementById('rFecha').value = new Date().toISOString().split('T')[0];
+  } catch(e) { console.error(e); }
+  finally { load(false); }
+}
+
+function load(on){ document.getElementById('loader').classList.toggle('on',on); }
+
+// Personas
+function chPersonas(d){
+  personas = Math.max(1, Math.min(20, personas + d));
+  document.getElementById('personasVal').textContent = personas;
+}
+
+// Steps
+function goStep(n){
+  // Validate current step
+  if (n > currentStep) {
+    const err = validate(currentStep);
+    if (err) { showErr(currentStep, err); return; }
+    showErr(currentStep, '');
+  }
+  currentStep = n;
+  document.querySelectorAll('.step').forEach((s,i) => s.classList.toggle('on', i === n));
+  document.querySelectorAll('.step-dot').forEach((d,i) => {
+    d.classList.toggle('on',   i === n);
+    d.classList.toggle('done', i < n);
+  });
+  if (n === 2) buildSummary();
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+function showErr(step, msg){ const el = document.getElementById('err'+step); if(el) el.textContent = msg; }
+
+function validate(step){
+  if (step === 0){
+    if (!document.getElementById('rFecha').value) return 'Selecciona una fecha';
+    if (!document.getElementById('rHora').value)  return 'Selecciona una hora';
+    return '';
+  }
+  if (step === 1){
+    if (!document.getElementById('rNombre').value.trim())   return 'El nombre es obligatorio';
+    if (!document.getElementById('rTelefono').value.trim()) return 'El teléfono es obligatorio';
+    return '';
+  }
+  return '';
+}
+
+function buildSummary(){
+  const fecha  = document.getElementById('rFecha').value;
+  const hora   = document.getElementById('rHora').value;
+  const nombre = document.getElementById('rNombre').value;
+  const tel    = document.getElementById('rTelefono').value;
+  const email  = document.getElementById('rEmail').value;
+  const nota   = document.getElementById('rNota').value;
+  const zonaId = document.getElementById('rZona').value;
+  const zona   = zonas.find(z=>z.id===zonaId);
+  const fechaFmt = new Date(fecha+'T12:00:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+
+  document.getElementById('summaryCard').innerHTML = [
+    ['Fecha', fechaFmt],
+    ['Hora', hora],
+    ['Personas', personas],
+    ['Nombre', nombre],
+    ['Teléfono', tel],
+    ['Email', email || '—'],
+    ['Zona', zona ? zona.icon+' '+zona.nombre : 'Sin preferencia'],
+    ['Nota', nota || '—'],
+  ].map(([l,v]) => '<div class="summary-row"><span class="summary-label">'+l+'</span><span class="summary-val">'+v+'</span></div>').join('');
+}
+
+async function confirmarReserva(){
+  const btn = document.getElementById('btnConfirmar');
+  btn.disabled = true; btn.textContent = 'Enviando…';
+  load(true);
+  try {
+    const row = {
+      id:       'res_' + Date.now(),
+      fecha:    document.getElementById('rFecha').value,
+      hora:     document.getElementById('rHora').value + ':00',
+      nombre:   document.getElementById('rNombre').value.trim(),
+      telefono: document.getElementById('rTelefono').value.trim(),
+      email:    document.getElementById('rEmail').value.trim(),
+      personas,
+      nota:     document.getElementById('rNota').value.trim(),
+      origen:   'web',
+      estado:   'pendiente',
+    };
+    const res = await sbIns('pos_reservas', row);
+    reservaId = res[0]?.id || row.id;
+
+    const fechaFmt = new Date(row.fecha+'T12:00:00').toLocaleDateString('es-ES',{weekday:'long',day:'numeric',month:'long'});
+    document.getElementById('successFecha').textContent = fechaFmt;
+    document.getElementById('successHora').textContent  = row.hora.slice(0,5);
+    document.getElementById('successRef').textContent   = reservaId.slice(-8).toUpperCase();
+    document.getElementById('successTel').textContent   = cfg.tel || '';
+
+    goStep(3);
+    // Show rating after 1s
+    setTimeout(() => {
+      document.getElementById('ratingForm').style.display = 'block';
+    }, 1000);
+  } catch(e) {
+    showErr(2, 'Error al enviar: ' + e.message);
+    btn.disabled = false; btn.textContent = '✓ Confirmar reserva';
+  } finally { load(false); }
+}
+
+// Pre-rating (proceso de reserva)
+const RATING_LABELS = ['','Muy mala','Mejorable','Regular','Buena','¡Excelente!'];
+function setPreRating(n){
+  preRating = n;
+  document.querySelectorAll('.star').forEach((s,i) => s.classList.toggle('on', i < n));
+  document.getElementById('ratingLabel').textContent = RATING_LABELS[n];
+  // Save to reserva
+  if (reservaId) {
+    fetch(SUPA_URL+'/rest/v1/pos_reservas?id=eq.'+reservaId, {
+      method:'PATCH', headers:HDR,
+      body: JSON.stringify({rating_restaurante: n})
+    }).catch(()=>{});
+  }
+}
+
+init();
+</script>
+</body>
+</html>

@@ -629,12 +629,15 @@ let currentMesa = null;
 
 async function loadMesas() {
   try {
-    const [pedidos, mesas] = await Promise.all([
+    const hoy = new Date().toISOString().split('T')[0];
+    const [pedidos, mesas, reservasHoy] = await Promise.all([
       SB.sel('pos_pedidos','estado=in.(abierto,en-cocina,listo,entregado)&order=created_at.asc'),
       SB.sel('pos_mesas','activa=eq.true&order=num.asc'),
+      SB.sel('pos_reservas','fecha=eq.'+hoy+'&estado=in.(pendiente,confirmada)&order=hora.asc').catch(()=>[]),
     ]);
-    C.pedidos = pedidos;
-    C.mesas   = mesas;
+    C.pedidos  = pedidos;
+    C.mesas    = mesas;
+    C.reservasHoy = reservasHoy || [];
     renderMesas();
   } catch(e) { toast('Error cargando mesas: '+e.message,'err'); }
 }
@@ -678,6 +681,7 @@ function renderMesas() {
         <div class="mc-icon">${m.icon||'🪑'}</div>
         <div class="mc-num">Mesa ${m.num}</div>
         <div class="mc-cap">${m.cap} pers.</div>
+        ${C.reservasHoy.some(r=>r.mesa_id===m.id)?'<div style="font-size:9px;background:var(--blue-d);color:var(--blue);border-radius:3px;padding:1px 5px;font-weight:700">📅 RESERVA</div>':''}
         ${tot?`<div class="mc-total">${tot}</div>`:''}
         ${tmr?`<div class="mc-timer">${tmr}</div>`:''}
       </div>`;
