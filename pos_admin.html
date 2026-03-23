@@ -218,6 +218,7 @@ select.fc option{background:var(--s2);}
 .res-tab.on{color:var(--gold);border-bottom-color:var(--gold);}
 .res-tab:hover:not(.on){color:var(--t1);}
 </style>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
 
@@ -522,6 +523,50 @@ select.fc option{background:var(--s2);}
               <button class="btn btn-primary" onclick="saveResConfig()" style="justify-content:center;padding:13px">
                 &#x1F4BE; Guardar configuraci&#xF3;n de reservas
               </button>
+
+              <!-- EMAIL NOTIFICATIONS -->
+              <div style="background:var(--s1);border:1px solid var(--bdr);border-radius:var(--r);padding:16px;margin-top:4px">
+                <div style="font-size:12px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:4px">&#x1F4E7; Notificaciones por email (EmailJS)</div>
+                <div style="font-size:12px;color:var(--t2);margin-bottom:12px;line-height:1.6">
+                  Crea una cuenta gratis en <a href="https://www.emailjs.com" target="_blank" style="color:var(--gold)">emailjs.com</a>,
+                  conecta tu Gmail/Outlook y crea las plantillas. Luego pega las credenciales aqu&#xED;.
+                  <a href="https://docs.google.com/document/d/pos_emailjs_setup" target="_blank" style="color:var(--blue)">Ver gu&#xED;a de plantillas &#x2197;</a>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+                  <div class="fg"><label>Email destino (notificaciones al restaurante)</label>
+                    <input class="fc" id="cfgEmailNotif" placeholder="chef@mirestaurante.com"></div>
+                  <div class="fg"><label>Slug p&#xFA;blico (URL del m&#xF3;dulo de reservas)</label>
+                    <div style="display:flex;gap:6px">
+                      <input class="fc" id="cfgSlug" placeholder="mi-restaurante" oninput="updateSlugPreview()" style="flex:1">
+                      <button class="btn btn-ghost btn-sm" onclick="copiarLinkReservas()" title="Copiar link">&#x1F4CB;</button>
+                    </div>
+                    <div id="slugPreview" style="font-size:10px;color:var(--t3);margin-top:3px"></div>
+                  </div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+                  <div class="fg"><label>EmailJS Service ID</label>
+                    <input class="fc" id="cfgEjsServiceId" placeholder="service_xxxxxxx"></div>
+                  <div class="fg"><label>EmailJS Public Key</label>
+                    <input class="fc" id="cfgEjsPublicKey" placeholder="xxxxxxxxxxxxxxxxxxxx"></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px">
+                  <div class="fg"><label>Template: nueva reserva (&#x2192; restaurante)</label>
+                    <input class="fc" id="cfgTplRest" placeholder="template_xxxxxxx"></div>
+                  <div class="fg"><label>Template: confirmaci&#xF3;n (&#x2192; cliente)</label>
+                    <input class="fc" id="cfgTplCliente" placeholder="template_xxxxxxx"></div>
+                </div>
+                <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+                  <div class="fg"><label>Template: cancelaci&#xF3;n (&#x2192; restaurante)</label>
+                    <input class="fc" id="cfgTplCancel" placeholder="template_xxxxxxx"></div>
+                  <div class="fg"><label>Template: recordatorio 24h (&#x2192; cliente)</label>
+                    <input class="fc" id="cfgTplRecordatorio" placeholder="template_xxxxxxx"></div>
+                </div>
+                <div style="display:flex;gap:8px;flex-wrap:wrap">
+                  <button class="btn btn-ghost btn-sm" onclick="testEmailNuevaReserva()">&#x1F9EA; Test nueva reserva</button>
+                  <button class="btn btn-ghost btn-sm" onclick="enviarRecordatoriosPendientes()">&#x23F0; Enviar recordatorios pendientes</button>
+                  <span id="emailTestStatus" style="font-size:12px;color:var(--t3);align-self:center"></span>
+                </div>
+              </div>
             </div>
           </div>
 
@@ -2310,6 +2355,7 @@ async function quickEstado(id, estado) {
     renderReservas();
     renderResStats();
     toast('Reserva ' + ESTADO_LABELS[estado].toLowerCase(), 'ok');
+    if (estado === 'cancelada' && r) PosEmail.cancelacion(r).catch(()=>{});
   } catch(e) { toast('Error: ' + e.message, 'err'); }
 }
 
@@ -2551,6 +2597,15 @@ const RES_CFG_MAP = {
   cfgResZona:      {field:'res_campo_zona',  type:'text'},
   cfgResMsgConfirm:{field:'res_msg_confirmacion',type:'text'},
   cfgResPolitica:  {field:'res_politica',    type:'text'},
+  // EmailJS
+  cfgEmailNotif:   {field:'email_notif',         type:'text'},
+  cfgSlug:         {field:'slug',                type:'text'},
+  cfgEjsServiceId: {field:'ejs_service_id',      type:'text'},
+  cfgEjsPublicKey: {field:'ejs_public_key',      type:'text'},
+  cfgTplRest:      {field:'ejs_tpl_restaurante', type:'text'},
+  cfgTplCliente:   {field:'ejs_tpl_cliente',     type:'text'},
+  cfgTplCancel:    {field:'ejs_tpl_cancelacion', type:'text'},
+  cfgTplRecordatorio:{field:'ejs_tpl_recordatorio',type:'text'},
 };
 
 const DIAS = [
@@ -2620,6 +2675,10 @@ function loadResConfig() {
   let horario = cfg.res_horario;
   if (typeof horario === 'string') { try { horario = JSON.parse(horario); } catch(_) { horario = null; } }
   renderHorarioGrid(horario);
+  // Init PosEmail with current saved config
+  PosEmail.init(cfg);
+  // Update slug preview
+  updateSlugPreview();
 }
 
 async function saveResConfig() {
@@ -2816,7 +2875,273 @@ async function deleteCocina(id) {
   );
 }
 
+/**
+ * RestaurantePOS — Email Notifications via EmailJS
+ * ==================================================
+ * Envía emails de reserva usando EmailJS (sin backend).
+ * Se incluye inline en pos_reservas.html y pos_admin.html.
+ *
+ * Setup:
+ *  1. Crear cuenta gratis en https://www.emailjs.com
+ *  2. Conectar un servicio de email (Gmail, Outlook, SMTP propio)
+ *  3. Crear las plantillas (ver PLANTILLAS más abajo)
+ *  4. Copiar Service ID, Public Key y Template IDs a la config del admin
+ *
+ * PLANTILLAS recomendadas en EmailJS:
+ * ─────────────────────────────────────
+ * TPL: tpl_nueva_reserva (al restaurante)
+ *   Variables: {{rest_nombre}}, {{nombre}}, {{fecha}}, {{hora}},
+ *              {{personas}}, {{telefono}}, {{email_cliente}}, {{nota}},
+ *              {{origen}}, {{ref}}
+ *
+ * TPL: tpl_confirmacion_cliente (al cliente)
+ *   Variables: {{rest_nombre}}, {{rest_dir}}, {{rest_tel}},
+ *              {{nombre}}, {{fecha}}, {{hora}}, {{personas}},
+ *              {{nota}}, {{ref}}, {{msg_confirmacion}}
+ *
+ * TPL: tpl_cancelacion (al restaurante)
+ *   Variables: {{rest_nombre}}, {{nombre}}, {{fecha}}, {{hora}},
+ *              {{personas}}, {{ref}}
+ *
+ * TPL: tpl_recordatorio (al cliente, 24h antes)
+ *   Variables: {{rest_nombre}}, {{rest_dir}}, {{rest_tel}},
+ *              {{nombre}}, {{fecha}}, {{hora}}, {{personas}}, {{ref}}
+ */
+
+const PosEmail = (() => {
+
+  let _cfg = null; // { ejs_service_id, ejs_public_key, ejs_tpl_*, email_notif, nombre, ... }
+
+  // ── Inicializar EmailJS con la config del restaurante ──
+  function init(cfg) {
+    _cfg = cfg;
+    if (cfg.ejs_public_key && window.emailjs) {
+      emailjs.init({ publicKey: cfg.ejs_public_key });
+    }
+  }
+
+  // ── ¿Está configurado EmailJS? ──
+  function isReady() {
+    return !!(
+      _cfg &&
+      _cfg.ejs_service_id &&
+      _cfg.ejs_public_key &&
+      window.emailjs
+    );
+  }
+
+  // ── Enviar email genérico ──
+  async function send(templateId, params) {
+    if (!isReady()) {
+      console.warn('[PosEmail] EmailJS no configurado, saltando email');
+      return { ok: false, reason: 'not_configured' };
+    }
+    if (!templateId) {
+      return { ok: false, reason: 'no_template' };
+    }
+    try {
+      await emailjs.send(_cfg.ejs_service_id, templateId, params);
+      return { ok: true };
+    } catch (e) {
+      console.error('[PosEmail] Error enviando email:', e);
+      return { ok: false, error: e.text || e.message || e };
+    }
+  }
+
+  // ── Helper: formato fecha legible ──
+  function fmtFecha(fecha) {
+    if (!fecha) return '';
+    return new Date(fecha + 'T12:00:00').toLocaleDateString('es-ES', {
+      weekday: 'long', day: 'numeric', month: 'long', year: 'numeric'
+    });
+  }
+
+  // ─────────────────────────────────────────────────
+  // EMAIL 1: Nueva reserva → restaurante
+  // ─────────────────────────────────────────────────
+  async function nuevaReserva(reserva) {
+    if (!_cfg?.ejs_tpl_restaurante) return { ok: false, reason: 'no_template' };
+    const params = {
+      to_email:       _cfg.email_notif || _cfg.email || '',
+      rest_nombre:    _cfg.nombre || 'Restaurante',
+      nombre:         reserva.nombre,
+      fecha:          fmtFecha(reserva.fecha),
+      hora:           (reserva.hora || '').slice(0, 5),
+      personas:       reserva.personas,
+      telefono:       reserva.telefono || '—',
+      email_cliente:  reserva.email || '—',
+      nota:           reserva.nota || '—',
+      origen:         reserva.origen || 'web',
+      ref:            (reserva.id || '').slice(-8).toUpperCase(),
+    };
+    return send(_cfg.ejs_tpl_restaurante, params);
+  }
+
+  // ─────────────────────────────────────────────────
+  // EMAIL 2: Confirmación → cliente
+  // ─────────────────────────────────────────────────
+  async function confirmacionCliente(reserva) {
+    if (!reserva.email) return { ok: false, reason: 'no_client_email' };
+    if (!_cfg?.ejs_tpl_cliente) return { ok: false, reason: 'no_template' };
+    const params = {
+      to_email:          reserva.email,
+      to_name:           reserva.nombre,
+      rest_nombre:       _cfg.nombre || 'Restaurante',
+      rest_dir:          _cfg.dir || '',
+      rest_tel:          _cfg.tel || '',
+      nombre:            reserva.nombre,
+      fecha:             fmtFecha(reserva.fecha),
+      hora:              (reserva.hora || '').slice(0, 5),
+      personas:          reserva.personas,
+      nota:              reserva.nota || '—',
+      ref:               (reserva.id || '').slice(-8).toUpperCase(),
+      msg_confirmacion:  _cfg.res_msg_confirmacion || '¡Te esperamos!',
+      politica:          _cfg.res_politica || '',
+    };
+    return send(_cfg.ejs_tpl_cliente, params);
+  }
+
+  // ─────────────────────────────────────────────────
+  // EMAIL 3: Cancelación → restaurante
+  // ─────────────────────────────────────────────────
+  async function cancelacion(reserva) {
+    if (!_cfg?.ejs_tpl_cancelacion) return { ok: false, reason: 'no_template' };
+    const params = {
+      to_email:    _cfg.email_notif || _cfg.email || '',
+      rest_nombre: _cfg.nombre || 'Restaurante',
+      nombre:      reserva.nombre,
+      fecha:       fmtFecha(reserva.fecha),
+      hora:        (reserva.hora || '').slice(0, 5),
+      personas:    reserva.personas,
+      telefono:    reserva.telefono || '—',
+      ref:         (reserva.id || '').slice(-8).toUpperCase(),
+    };
+    return send(_cfg.ejs_tpl_cancelacion, params);
+  }
+
+  // ─────────────────────────────────────────────────
+  // EMAIL 4: Recordatorio 24h → cliente
+  // Llamado desde el admin (botón manual) o desde
+  // una Supabase Edge Function cron
+  // ─────────────────────────────────────────────────
+  async function recordatorio(reserva) {
+    if (!reserva.email) return { ok: false, reason: 'no_client_email' };
+    if (!_cfg?.ejs_tpl_recordatorio) return { ok: false, reason: 'no_template' };
+    const params = {
+      to_email:    reserva.email,
+      to_name:     reserva.nombre,
+      rest_nombre: _cfg.nombre || 'Restaurante',
+      rest_dir:    _cfg.dir || '',
+      rest_tel:    _cfg.tel || '',
+      nombre:      reserva.nombre,
+      fecha:       fmtFecha(reserva.fecha),
+      hora:        (reserva.hora || '').slice(0, 5),
+      personas:    reserva.personas,
+      ref:         (reserva.id || '').slice(-8).toUpperCase(),
+    };
+    return send(_cfg.ejs_tpl_recordatorio, params);
+  }
+
+  return { init, isReady, nuevaReserva, confirmacionCliente, cancelacion, recordatorio };
+
+})();
+
+// ─── EMAIL NOTIFICATIONS (Admin) ───
+
+function copiarLinkReservas() {
+  const slug = document.getElementById('cfgSlug')?.value?.trim();
+  const base = window.location.href.replace(/pos_admin\.html.*$/, '').replace(/\/$/, '');
+  const url  = base + '/pos_reservas.html' + (slug ? '?id='+slug : '');
+  navigator.clipboard.writeText(url)
+    .then(() => toast('Link copiado: ' + url, 'ok'))
+    .catch(() => toast(url, 'inf'));
+}
+
+function updateSlugPreview() {
+  const slug = document.getElementById('cfgSlug')?.value?.trim();
+  const el   = document.getElementById('slugPreview');
+  if (!el) return;
+  if (!slug) { el.textContent = ''; return; }
+  const base = window.location.href.replace(/pos_admin\.html.*$/, '').replace(/\/$/, '');
+  el.textContent = base + '/pos_reservas.html?id=' + slug;
+}
+
+async function testEmailNuevaReserva() {
+  const statusEl = document.getElementById('emailTestStatus');
+  statusEl.textContent = 'Enviando test\u2026';
+  // Init PosEmail with current config
+  const cfg = Object.assign({}, cache.config, {
+    email_notif:          document.getElementById('cfgEmailNotif')?.value,
+    ejs_service_id:       document.getElementById('cfgEjsServiceId')?.value,
+    ejs_public_key:       document.getElementById('cfgEjsPublicKey')?.value,
+    ejs_tpl_restaurante:  document.getElementById('cfgTplRest')?.value,
+    ejs_tpl_cliente:      document.getElementById('cfgTplCliente')?.value,
+  });
+  PosEmail.init(cfg);
+  if (!PosEmail.isReady()) {
+    statusEl.textContent = '\u274C EmailJS no configurado. Rellena Service ID y Public Key.';
+    return;
+  }
+  const testReserva = {
+    id: 'TEST' + Date.now(),
+    nombre: 'Cliente de Prueba',
+    fecha: new Date().toISOString().split('T')[0],
+    hora: '21:00',
+    personas: 2,
+    telefono: '+34 600 000 000',
+    email: cfg.email_notif || cfg.email || '',
+    nota: 'Esto es un email de prueba',
+    origen: 'admin',
+  };
+  const result = await PosEmail.nuevaReserva(testReserva);
+  statusEl.textContent = result.ok
+    ? '\u2705 Test enviado a ' + (cfg.email_notif || 'email destino')
+    : '\u274C Error: ' + (result.error || result.reason || 'desconocido');
+}
+
+async function enviarRecordatoriosPendientes() {
+  const statusEl = document.getElementById('emailTestStatus');
+  statusEl.textContent = 'Buscando reservas para ma\u00f1ana\u2026';
+  try {
+    const tomorrow = new Date();
+    tomorrow.setDate(tomorrow.getDate()+1);
+    const fechaStr = tomorrow.toISOString().split('T')[0];
+    const reservasMañana = await SB.select('pos_reservas',
+      'fecha=eq.'+fechaStr+'&estado=in.(pendiente,confirmada)&recordatorio_enviado=eq.false'
+    );
+    if (!reservasMañana.length) {
+      statusEl.textContent = '\u2705 Sin recordatorios pendientes para ma\u00f1ana';
+      return;
+    }
+    // Init PosEmail with saved config
+    PosEmail.init(cache.config);
+    if (!PosEmail.isReady()) {
+      statusEl.textContent = '\u274C EmailJS no configurado';
+      return;
+    }
+    let sent = 0, failed = 0;
+    for (const r of reservasMañana) {
+      if (!r.email) continue;
+      const result = await PosEmail.recordatorio(r);
+      if (result.ok) {
+        sent++;
+        await SB.update('pos_reservas', {id:r.id}, {recordatorio_enviado: true}).catch(()=>{});
+      } else {
+        failed++;
+      }
+    }
+    statusEl.textContent = '\u2705 Recordatorios: '+sent+' enviados'+(failed?' / '+failed+' fallidos':'');
+    toast('\u23F0 Recordatorios enviados: '+sent, 'ok');
+  } catch(e) {
+    statusEl.textContent = '\u274C Error: '+e.message;
+  }
+}
+
+// Hook: send cancellation email when estado changes to 'cancelada'
+
+
 boot();
+
 </script>
 </body>
 </html>
