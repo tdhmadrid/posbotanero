@@ -1114,7 +1114,7 @@ async function saveOrden(){
   if(!currentMesa||!Object.keys(orden).length){toast('La comanda est\u00e1 vac\u00eda','err');return;}
   load(true);
   try{
-    const items=Object.values(orden).map(o=>({id:o.item.id,name:o.item.name,emoji:o.item.emoji,price:Number(o.item.price),iva:o.item.iva,qty:o.qty,nota:o.nota}));
+    const items=Object.values(orden).map(o=>({id:o.item.id,name:o.item.name,emoji:o.item.emoji,price:Number(o.item.price),iva:o.item.iva,qty:o.qty,nota:o.nota,kds_ids:o.item.kds_ids||[]}));
     if(currentPedidoId){await SB.upd('pos_pedidos',{id:currentPedidoId},{items});}
     else{const res=await SB.ins('pos_pedidos',{id:'p'+Date.now(),mesa_id:currentMesa.id,mesa_num:currentMesa.num,items,estado:'abierto',user_id:currentUser.id});currentPedidoId=res[0]?res[0].id:null;}
     await refreshMesas();toast('\uD83D\uDCBE Comanda guardada','ok');
@@ -1150,7 +1150,7 @@ async function procesarCobro(){
     let b10=0,b21=0;
     Object.values(orden).forEach(o=>{if(o.item.iva===21)b21+=o.item.price*o.qty/1.21;else b10+=o.item.price*o.qty/1.10;});
     const q10=b10*.10,q21=b21*.21,total=b10+q10+b21+q21;
-    const items=Object.values(orden).map(o=>({id:o.item.id,name:o.item.name,emoji:o.item.emoji,price:Number(o.item.price),iva:o.item.iva,qty:o.qty,nota:o.nota}));
+    const items=Object.values(orden).map(o=>({id:o.item.id,name:o.item.name,emoji:o.item.emoji,price:Number(o.item.price),iva:o.item.iva,qty:o.qty,nota:o.nota,kds_ids:o.item.kds_ids||[]}));
     const factura={
       id:'f'+Date.now(),num:numFact,pedido_id:currentPedidoId,mesa_num:currentMesa?currentMesa.num:null,
       items,metodo_pago:metodo,

@@ -257,6 +257,7 @@ select.fc option{background:var(--s2);}
         <button class="ni on" id="ni-usuarios" onclick="navTo('usuarios',this)"><span class="ico">&#x1F465;</span>Usuarios</button>
         <button class="ni" id="ni-mesas" onclick="navTo('mesas',this)"><span class="ico">&#x1F5FA;</span>Mapa de mesas</button>
         <button class="ni" id="ni-carta" onclick="navTo('carta',this)"><span class="ico">&#x1F4CB;</span>Carta</button>
+        <button class="ni" id="ni-cocinas" onclick="navTo('cocinas',this)"><span class="ico">&#x1F373;</span>Cocinas / KDS</button>
         <button class="ni" id="ni-reservas" onclick="navTo('reservas',this)"><span class="ico">&#x1F4C5;</span>Reservaciones</button>
         <div class="sb-sect">Abrir módulo</div>
         <a href="pos_core.html"   target="_blank" class="ni" style="text-decoration:none"><span class="ico">🖥️</span>TPV — Mostrador</a>
@@ -526,6 +527,17 @@ select.fc option{background:var(--s2);}
 
         </div>
 
+        <!-- COCINAS / KDS -->
+        <div class="panel" id="panel-cocinas">
+          <div class="ph">
+            <div class="ph-left"><h2>Cocinas / Estaciones KDS</h2>
+              <div class="ph-desc">Define las estaciones de cocina (Cocina caliente, Barra, Paso...) y asigna productos a cada una</div>
+            </div>
+            <button class="btn btn-primary" onclick="openCocinaModal(null)">+ Nueva estaci&#xF3;n</button>
+          </div>
+          <div id="cocinasLayout"></div>
+        </div>
+
         <!-- CARTA -->
         <div class="panel" id="panel-carta">
           <div class="ph">
@@ -679,6 +691,12 @@ select.fc option{background:var(--s2);}
       </select>
     </div>
     <div class="ferr" id="iErr"></div>
+        <hr style="border:none;border-top:1px solid var(--bdr);margin:12px 0">
+    <div class="fg">
+      <label>&#x1F373; Estaciones KDS</label>
+      <div id="i_kds_checks" style="display:flex;gap:8px;flex-wrap:wrap;margin-top:6px"></div>
+      <div style="font-size:11px;color:var(--t3);margin-top:4px">Sin selecci&#xF3;n = va a todas las estaciones</div>
+    </div>
     <div class="mactions">
       <button class="btn btn-ghost" onclick="closeM('mItem')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveItem()">Guardar producto</button>
@@ -791,6 +809,29 @@ select.fc option{background:var(--s2);}
   </div>
 </div>
 
+<!-- MODAL COCINA/ESTACIÓN KDS -->
+<div class="movl" id="mCocina">
+  <div class="mbox" style="width:420px">
+    <div class="mh" id="mCocinaH">Nueva estaci&#xF3;n KDS</div>
+    <div class="fg"><label>Nombre *</label><input class="fc" id="ck_n" placeholder="Cocina caliente, Barra, Paso..."></div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+      <div class="fg"><label>Emoji</label><input class="fc" id="ck_e" placeholder="&#x1F373;" maxlength="4"></div>
+      <div class="fg"><label>Color</label><input type="color" class="fc" id="ck_c" value="#f59e0b" style="height:42px;padding:4px"></div>
+    </div>
+    <div class="fg"><label>Orden</label><input type="number" class="fc" id="ck_o" value="1" min="1" max="99"></div>
+    <div class="fg">
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="ck_a" checked style="accent-color:var(--gold)"> Estaci&#xF3;n activa
+      </label>
+    </div>
+    <div id="ckErr" style="color:var(--red);font-size:12px"></div>
+    <div class="mactions">
+      <button class="btn btn-ghost" onclick="closeM('mCocina')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveCocina()" style="flex:1;justify-content:center">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div id="ta"></div>
 
 <script>
@@ -846,7 +887,7 @@ const SB = {
 // ─────────────────────────────────────────
 // LOCAL CACHE (para UI instantánea)
 // ─────────────────────────────────────────
-const cache = { users:[], zonas:[], mesas:[], cats:[], carta:[], config:{} };
+const cache = { users:[], zonas:[], mesas:[], cats:[], carta:[], config:{}, stations:[] };
 
 // ─────────────────────────────────────────
 // LOGIN
@@ -893,20 +934,22 @@ function doLogout() {
 async function boot() {
   showLoading(true);
   try {
-    const [users, zonas, mesas, cats, carta, cfgArr] = await Promise.all([
+    const [users, zonas, mesas, cats, carta, cfgArr, stations] = await Promise.all([
       SB.select('pos_users', 'order=created_at.asc'),
       SB.select('pos_zonas', 'order=orden.asc'),
       SB.select('pos_mesas', 'order=num.asc'),
       SB.select('pos_cats',  'order=orden.asc'),
       SB.select('pos_carta', 'order=orden.asc,name.asc'),
       SB.select('pos_config','id=eq.1'),
+      SB.select('pos_kds_stations','order=orden.asc').catch(()=>[]),
     ]);
-    cache.users  = users;
-    cache.zonas  = zonas;
-    cache.mesas  = mesas;
-    cache.cats   = cats;
-    cache.carta  = carta;
-    cache.config = cfgArr[0] || {};
+    cache.users    = users;
+    cache.zonas    = zonas;
+    cache.mesas    = mesas;
+    cache.cats     = cats;
+    cache.carta    = carta;
+    cache.config   = cfgArr[0] || {};
+    cache.stations = stations || [];
     renderUsers();
     buildConfig();
     tick();
@@ -933,7 +976,7 @@ function showLoading(on) {
 // ─────────────────────────────────────────
 // NAV
 // ─────────────────────────────────────────
-const TITLES = { usuarios:'Usuarios', mesas:'Mapa de mesas', carta:'Carta', config:'Configuración', reservas:'Reservaciones' };
+const TITLES = { usuarios:'Usuarios', mesas:'Mapa de mesas', carta:'Carta', cocinas:'Cocinas / KDS', config:'Configuración', reservas:'Reservaciones' };
 function navTo(name, btn) {
   document.querySelectorAll('.panel').forEach(p=>p.classList.remove('on'));
   document.querySelectorAll('.ni').forEach(b=>b.classList.remove('on'));
@@ -941,6 +984,7 @@ function navTo(name, btn) {
   (btn||document.getElementById('ni-'+name)).classList.add('on');
   document.getElementById('tbTitle').textContent = TITLES[name]||name;
     if (name==='mesas')    { switchMesasTab('mesas'); }
+  if (name==='cocinas')  loadCocinas();
   if (name==='carta')    renderCarta();
   if (name==='config')   { loadConfig(); checkBridgeStatus(); }
   if (name==='reservas') loadReservas();
@@ -1440,6 +1484,17 @@ function openItemModal(iid=null) {
     document.getElementById('mItemH').textContent = 'Nuevo producto';
   }
   document.getElementById('iErr').textContent = '';
+  // Populate KDS checkboxes
+  const kdsChecks = document.getElementById('i_kds_checks');
+  if (kdsChecks) {
+    const selectedIds = iid ? (cache.carta.find(x=>x.id===iid)?.kds_ids || []) : [];
+    kdsChecks.innerHTML = cache.stations.filter(s=>s.activa).map(s =>
+      '<label style="display:flex;align-items:center;gap:6px;padding:6px 10px;border:1.5px solid var(--bdr);border-radius:8px;cursor:pointer;font-size:13px;font-weight:600;background:var(--bg);transition:.12s">'
+      + '<input type="checkbox" value="'+s.id+'" '+(selectedIds.includes(s.id)?'checked':'')+' style="accent-color:'+s.color+';width:15px;height:15px"> '
+      + (s.emoji||'\uD83C\uDF73')+' '+s.nombre+'</label>'
+    ).join('');
+    if (!cache.stations.length) kdsChecks.innerHTML = '<span style="font-size:12px;color:var(--t3)">No hay estaciones KDS configuradas</span>';
+  }
   openM('mItem');
   setTimeout(()=>document.getElementById('i_n').focus(),100);
 }
@@ -1452,16 +1507,17 @@ async function saveItem() {
   const iva    = parseInt(document.getElementById('i_iv').value);
   const tag    = document.getElementById('i_tg').value||null;
   const active = document.getElementById('i_ac').value === '1';
+  const kds_ids = Array.from(document.querySelectorAll('#i_kds_checks input:checked')).map(cb=>cb.value);
   if (!name)   { document.getElementById('iErr').textContent='El nombre es obligatorio'; return; }
   if (!cat_id) { document.getElementById('iErr').textContent='Selecciona una categoría'; return; }
   showLoading(true);
   try {
     if (editIid) {
-      await SB.update('pos_carta', { id: editIid }, { name, cat_id, emoji, descripcion: desc, price, iva, tag, active });
+      await SB.update('pos_carta', { id: editIid }, { name, cat_id, emoji, descripcion: desc, price, iva, tag, active, kds_ids });
       const i = cache.carta.findIndex(x=>x.id===editIid);
-      Object.assign(cache.carta[i], { name, cat_id, emoji, descripcion: desc, price, iva, tag, active });
+      Object.assign(cache.carta[i], { name, cat_id, emoji, descripcion: desc, price, iva, tag, active, kds_ids });
     } else {
-      const row = { id:'c'+Date.now(), name, cat_id, emoji, descripcion: desc, price, iva, tag, active, orden:99 };
+      const row = { id:'c'+Date.now(), name, cat_id, emoji, descripcion: desc, price, iva, tag, active, kds_ids, orden:99 };
       await SB.insert('pos_carta', row);
       cache.carta.push(row);
     }
@@ -2623,6 +2679,142 @@ async function testBridgePrint() {
 }
 
 // Check on config tab load
+
+
+// ═══════════════════════════════════════════════════════════
+// COCINAS / ESTACIONES KDS
+// ═══════════════════════════════════════════════════════════
+let editCocinaId = null;
+
+async function loadCocinas() {
+  try {
+    cache.stations = await SB.select('pos_kds_stations','order=orden.asc');
+  } catch(_) { cache.stations = []; }
+  renderCocinas();
+}
+
+function renderCocinas() {
+  const el = document.getElementById('cocinasLayout');
+  if (!el) return;
+  const stations = cache.stations;
+  if (!stations.length) {
+    el.innerHTML = '<div style="text-align:center;padding:40px;color:var(--t3)">No hay estaciones configuradas. Crea una con el botón de arriba.</div>';
+    return;
+  }
+
+  // Station cards
+  let html = '<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(260px,1fr));gap:12px;margin-bottom:24px">';
+  stations.forEach(s => {
+    const col = s.color || '#f59e0b';
+    const prods = cache.carta.filter(p => p.kds_ids && p.kds_ids.includes(s.id));
+    html += '<div style="background:var(--s1);border:2px solid '+col+'44;border-radius:var(--r);overflow:hidden">'
+      + '<div style="padding:12px 14px;background:'+col+'18;border-bottom:1px solid '+col+'33;display:flex;align-items:center;gap:10px">'
+      + '<span style="font-size:24px">+'+(s.emoji||'\uD83C\uDF73')+'</span>'
+      + '<div style="flex:1">'
+      + '<div style="font-size:14px;font-weight:700;color:var(--t1)">'+s.nombre+'</div>'
+      + '<div style="font-size:11px;color:'+col+'">'+prods.length+' producto'+(prods.length!==1?'s':'')+'</div>'
+      + '</div>'
+      + (s.activa ? '<span style="font-size:10px;background:var(--teal-d);color:var(--teal);border-radius:4px;padding:2px 7px;font-weight:700">ACTIVA</span>' : '<span style="font-size:10px;background:var(--s2);color:var(--t3);border-radius:4px;padding:2px 7px">INACTIVA</span>')
+      + '<button class="btn btn-ghost btn-xs" onclick="openCocinaModal(\''+s.id+'\')">&#x270F;&#xFE0F;</button>'
+      + '<button class="btn btn-ghost btn-xs" onclick="deleteCocina(\''+s.id+'\')" style="color:var(--red)">&#x1F5D1;</button>'
+      + '</div>';
+
+    // Products assigned
+    if (prods.length) {
+      html += '<div style="padding:10px 14px;display:flex;flex-wrap:wrap;gap:4px">';
+      prods.forEach(p => {
+        html += '<span style="font-size:11px;background:var(--bg);border:1px solid var(--bdr);border-radius:20px;padding:2px 8px">'+(p.emoji||'🍽️')+' '+p.name+'</span>';
+      });
+      html += '</div>';
+    } else {
+      html += '<div style="padding:10px 14px;font-size:12px;color:var(--t3)">Sin productos asignados a\u00fan</div>';
+    }
+    html += '</div>';
+  });
+  html += '</div>';
+
+  // Unassigned products warning
+  const unassigned = cache.carta.filter(p => !p.kds_ids || !p.kds_ids.length);
+  if (unassigned.length) {
+    html += '<div style="background:rgba(245,158,11,.08);border:1px solid rgba(245,158,11,.2);border-radius:var(--r);padding:12px 14px;font-size:13px">'
+      + '<strong style="color:var(--gold)">&#x26A0;&#xFE0F; '+unassigned.length+' producto'+(unassigned.length!==1?'s':'')
+      + ' sin estaci\u00f3n asignada</strong> \u2014 ir\u00e1n a todas las estaciones KDS.<br>'
+      + '<div style="margin-top:6px;display:flex;flex-wrap:wrap;gap:4px">'
+      + unassigned.map(p=>'<span style="font-size:11px;background:var(--s1);border:1px solid var(--bdr);border-radius:20px;padding:2px 8px">'+(p.emoji||'🍽️')+' '+p.name+'</span>').join('')
+      + '</div></div>';
+  }
+
+  el.innerHTML = html;
+}
+
+function openCocinaModal(id) {
+  editCocinaId = id;
+  if (id) {
+    const s = cache.stations.find(x=>x.id===id);
+    if (!s) return;
+    document.getElementById('mCocinaH').textContent = 'Editar — '+s.nombre;
+    document.getElementById('ck_n').value = s.nombre;
+    document.getElementById('ck_e').value = s.emoji||'\uD83C\uDF73';
+    document.getElementById('ck_c').value = s.color||'#f59e0b';
+    document.getElementById('ck_o').value = s.orden||1;
+    document.getElementById('ck_a').checked = s.activa !== false;
+  } else {
+    document.getElementById('mCocinaH').textContent = 'Nueva estaci\u00f3n KDS';
+    document.getElementById('ck_n').value = '';
+    document.getElementById('ck_e').value = '\uD83C\uDF73';
+    document.getElementById('ck_c').value = '#f59e0b';
+    document.getElementById('ck_o').value = (cache.stations.length+1);
+    document.getElementById('ck_a').checked = true;
+  }
+  document.getElementById('ckErr').textContent = '';
+  openM('mCocina');
+}
+
+async function saveCocina() {
+  const nombre = document.getElementById('ck_n').value.trim();
+  if (!nombre) { document.getElementById('ckErr').textContent = 'El nombre es obligatorio'; return; }
+  const row = {
+    nombre,
+    emoji:  document.getElementById('ck_e').value.trim() || '\uD83C\uDF73',
+    color:  document.getElementById('ck_c').value,
+    orden:  parseInt(document.getElementById('ck_o').value)||1,
+    activa: document.getElementById('ck_a').checked,
+  };
+  showLoading(true);
+  try {
+    if (editCocinaId) {
+      await SB.update('pos_kds_stations',{id:editCocinaId},row);
+      const i = cache.stations.findIndex(x=>x.id===editCocinaId);
+      if (i>=0) Object.assign(cache.stations[i], row);
+      toast('Estaci\u00f3n actualizada','ok');
+    } else {
+      row.id = 'kds_'+Date.now();
+      await SB.insert('pos_kds_stations',row);
+      cache.stations.push(row);
+      toast('Estaci\u00f3n creada','ok');
+    }
+    closeM('mCocina');
+    renderCocinas();
+  } catch(e){ toast('Error: '+e.message,'err'); }
+  finally { showLoading(false); }
+}
+
+async function deleteCocina(id) {
+  const s = cache.stations.find(x=>x.id===id);
+  openConf('Eliminar estaci\u00f3n',
+    '\u00bfEliminar "'+s?.nombre+'"? Los productos asignados quedar\u00e1n sin estaci\u00f3n.',
+    async () => {
+      showLoading(true);
+      try {
+        await SB.delete('pos_kds_stations',{id});
+        cache.stations = cache.stations.filter(x=>x.id!==id);
+        renderCocinas();
+        toast('Estaci\u00f3n eliminada','inf');
+      } catch(e){ toast('Error: '+e.message,'err'); }
+      finally { showLoading(false); }
+    }
+  );
+}
 
 boot();
 </script>

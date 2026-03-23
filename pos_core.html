@@ -244,6 +244,10 @@ input,select,textarea{font-family:var(--fb);}
 .t-row{display:flex;justify-content:space-between;font-size:11px;padding:1px 0;}
 .t-total{display:flex;justify-content:space-between;font-weight:700;font-size:14px;padding:3px 0;}
 .t-foot{text-align:center;font-size:10px;color:#555;margin-top:6px;}
+
+/* ── TPV PLANO VISTA ── */
+#vistaGrid{flex:1;overflow-y:auto;}
+#vistaPlano{flex-direction:column;}
 </style>
 </head>
 <body>
@@ -292,12 +296,36 @@ input,select,textarea{font-family:var(--fb);}
     <!-- MESAS -->
     <div class="panel on" id="panelMesas">
       <div class="mesas-toolbar">
-        <h2>Plano de mesas</h2>
+        <div style="display:flex;gap:6px;align-items:center">
+          <button id="btnVistaGrid"  class="btn btn-primary btn-sm"  onclick="setMesaVista('grid')">&#x22EE;&#x22EE; Lista</button>
+          <button id="btnVistaPlano" class="btn btn-ghost btn-sm"    onclick="setMesaVista('plano')">&#x1F5FA; Plano</button>
+        </div>
+        <button class="btn btn-ghost btn-sm" onclick="toggleReservasHoy()">&#x1F4C5; Reservas hoy</button>
         <button class="btn btn-ghost btn-sm" onclick="openQRInfo()">&#x1F4F1; QR clientes</button>
         <button class="btn btn-ghost btn-sm" onclick="openKDSInfo()">&#x1F4FA; KDS</button>
-        <button class="btn btn-primary btn-sm" onclick="loadMesas()">&#x21BB; Actualizar</button>
+        <button class="btn btn-ghost btn-sm" onclick="loadMesas()">&#x21BB;</button>
       </div>
-      <div id="mesasContainer"></div>
+      <!-- RESERVAS HOY (panel lateral plegable) -->
+      <div id="reservasHoyPanel" style="display:none;background:var(--s1);border-bottom:1px solid var(--bdr);padding:12px 16px;max-height:180px;overflow-y:auto">
+        <div style="font-size:11px;font-weight:700;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Reservas de hoy</div>
+        <div id="reservasHoyList"></div>
+      </div>
+      <!-- VISTA GRID -->
+      <div id="vistaGrid" style="flex:1;overflow-y:auto">
+        <div id="mesasContainer"></div>
+      </div>
+      <!-- VISTA PLANO -->
+      <div id="vistaPlano" style="display:none;flex:1;overflow:auto;background:var(--s2);position:relative">
+        <div style="display:flex;align-items:center;gap:6px;padding:8px 12px;border-bottom:1px solid var(--bdr);flex-shrink:0;position:sticky;top:0;background:var(--s2);z-index:10">
+          <span style="font-size:12px;color:var(--t2)">Toca una mesa para abrirla</span>
+          <div style="margin-left:auto;display:flex;gap:4px">
+            <button class="btn btn-ghost btn-sm" onclick="corePlanoZoom(Math.max(.4,corePZoom-.2))" style="padding:4px 8px">&#x2212;</button>
+            <span id="corePZoomLabel" style="font-size:11px;min-width:34px;text-align:center;color:var(--t3)">100%</span>
+            <button class="btn btn-ghost btn-sm" onclick="corePlanoZoom(Math.min(2,corePZoom+.2))" style="padding:4px 8px">+</button>
+          </div>
+        </div>
+        <div id="corePlanoCanvas" style="position:relative;min-width:800px;min-height:500px;transform-origin:top left"></div>
+      </div>
     </div>
 
     <!-- PEDIDO -->
@@ -744,7 +772,6 @@ const PosPrint = (() => {
 
 })();
 
-
 'use strict';
 // ─── SUPABASE ───
 const SUPA_URL = 'https://seomuaorrpowiahhniap.supabase.co';
@@ -970,6 +997,8 @@ function renderMesas() {
     html += '</div>';
   });
   document.getElementById('mesasContainer').innerHTML = html || '<div style="padding:40px;text-align:center;color:var(--t3)">No hay mesas configuradas</div>';
+  if (coreMesaVista==='plano') renderCorePlano();
+  if (reservasPanelVisible) renderReservasHoyList();
 }
 
 async function clickMesa(mid) {
@@ -1091,7 +1120,8 @@ async function saveOrden() {
   try {
     const items = Object.values(orden).map(({item,qty,nota})=>({
       id:item.id, name:item.name, emoji:item.emoji,
-      price:Number(item.price), iva:item.iva, qty, nota
+      price:Number(item.price), iva:item.iva, qty, nota,
+      kds_ids: item.kds_ids || []
     }));
     const row = {
       mesa_id: currentMesa.id, mesa_num: currentMesa.num,
@@ -1685,8 +1715,123 @@ async function coreConfirmarAbrirMesa() {
   finally { load(false); }
 }
 
+
+// ─── VISTA DE MESAS (grid / plano) ───
+let coreMesaVista = 'grid';
+let corePZoom = 1;
+const CORE_ZONA_COLORS = ['#1e3a5f','#1a4731','#3d1a5f','#4a2c0a','#1a3a4a','#4a1a1a'];
+
+function setMesaVista(v) {
+  coreMesaVista = v;
+  document.getElementById('vistaGrid').style.display  = v==='grid'  ? '' : 'none';
+  document.getElementById('vistaPlano').style.display = v==='plano' ? 'flex' : 'none';
+  document.getElementById('btnVistaGrid').className   = 'btn btn-'+(v==='grid'?'primary':'ghost')+' btn-sm';
+  document.getElementById('btnVistaPlano').className  = 'btn btn-'+(v==='plano'?'primary':'ghost')+' btn-sm';
+  if (v==='plano') renderCorePlano();
+}
+
+function corePlanoZoom(z) {
+  corePZoom = Math.round(z*10)/10;
+  const lbl = document.getElementById('corePZoomLabel');
+  if (lbl) lbl.textContent = Math.round(corePZoom*100)+'%';
+  const canvas = document.getElementById('corePlanoCanvas');
+  if (canvas) { canvas.style.transform='scale('+corePZoom+')'; canvas.style.transformOrigin='top left'; }
+}
+
+function renderCorePlano() {
+  const canvas = document.getElementById('corePlanoCanvas');
+  if (!canvas) return;
+  const zonas = C.zonas, mesas = C.mesas;
+  const zonaColorMap = {};
+  zonas.forEach((z,i) => { zonaColorMap[z.id] = CORE_ZONA_COLORS[i%CORE_ZONA_COLORS.length]; });
+
+  const allX = mesas.map(m=>(m.pos_x||100)+90).concat((C.planoItems||[]).map(i=>(i.pos_x||50)+(i.ancho||120)));
+  const allY = mesas.map(m=>(m.pos_y||100)+90).concat((C.planoItems||[]).map(i=>(i.pos_y||50)+(i.alto||40)));
+  const cW = Math.max(800,...(allX.length?allX:[800]))+80;
+  const cH = Math.max(500,...(allY.length?allY:[500]))+80;
+  canvas.style.width=cW+'px'; canvas.style.height=cH+'px';
+
+  let svg = '<svg style="position:absolute;inset:0;pointer-events:none" width="'+cW+'" height="'+cH+'">';
+  for(let x=20;x<cW;x+=20) for(let y=20;y<cH;y+=20)
+    svg += '<circle cx="'+x+'" cy="'+y+'" r="1" fill="rgba(255,255,255,.05)"/>';
+  svg += '</svg>';
+
+  let zonasBg='';
+  zonas.forEach(z=>{
+    const zm=mesas.filter(m=>m.zona_id===z.id); if(!zm.length) return;
+    const xs=zm.map(m=>m.pos_x||100), ys=zm.map(m=>m.pos_y||100);
+    const x1=Math.min(...xs)-30,y1=Math.min(...ys)-38,x2=Math.max(...xs)+110,y2=Math.max(...ys)+110;
+    const col=zonaColorMap[z.id]||'#1e3a5f';
+    zonasBg+='<div style="position:absolute;left:'+x1+'px;top:'+y1+'px;width:'+(x2-x1)+'px;height:'+(y2-y1)+'px;background:'+col+'18;border:1px dashed '+col+'44;border-radius:12px;pointer-events:none">'
+      +'<span style="position:absolute;top:5px;left:9px;font-size:10px;font-weight:700;color:'+col+'aa;letter-spacing:1px;text-transform:uppercase">'+z.icon+' '+z.nombre+'</span></div>';
+  });
+
+  const ITEM_COL={pared:'#555',barra:'#6b4226',ventana:'#4a90a4',puerta:'#8B6914',planta:'#2d6a2d',banos:'#4a5568',mostrador:'#5a4a3a'};
+  let itemsHtml='';
+  (C.planoItems||[]).forEach(item=>{
+    const col=item.color||ITEM_COL[item.tipo]||'#555';
+    itemsHtml+='<div style="position:absolute;border-radius:6px;display:flex;align-items:center;justify-content:center;pointer-events:none;left:'+(item.pos_x||50)+'px;top:'+(item.pos_y||50)+'px;width:'+(item.ancho||120)+'px;height:'+(item.alto||40)+'px;background:'+col+';opacity:.7">'
+      +'<span style="font-size:10px;font-weight:600;color:#fff;overflow:hidden;white-space:nowrap;text-overflow:ellipsis;padding:0 4px">'+(item.label||'')+'</span></div>';
+  });
+
+  let mesasHtml='';
+  mesas.forEach(m=>{
+    const pedido=C.pedidos.find(p=>p.mesa_id===m.id);
+    let st='libre';
+    if(!m.sesion_activa) st='libre';
+    else if(pedido&&pedido.estado==='listo') st='listo';
+    else if(pedido&&pedido.estado==='en-cocina') st='cocina';
+    else if(pedido) st='ocupada';
+    else st='abierta';
+    const round=m.forma==='redonda', wide=m.forma==='rectangular';
+    const w=wide?100:72, h=wide?56:72, bdr=round?'50%':'10px';
+    const col=zonaColorMap[m.zona_id]||'#f59e0b';
+    const tot=(m.sesion_activa&&pedido&&pedido.items)?pedido.items.reduce((s,i)=>s+(i.price*i.qty),0).toFixed(0)+'\u20ac':'';
+    const hasRes=(C.reservasHoy||[]).some(r=>r.mesa_id===m.id);
+    const listoBadge=st==='listo'?'<div style="position:absolute;top:-10px;left:50%;transform:translateX(-50%);background:var(--teal);color:#000;font-size:8px;font-weight:800;padding:2px 5px;border-radius:4px;white-space:nowrap">\uD83D\uDD14 LISTO</div>':'';
+    const resBadge=hasRes?'<div style="position:absolute;bottom:-10px;left:50%;transform:translateX(-50%);background:var(--blue,#3b82f6);color:#fff;font-size:8px;font-weight:700;padding:1px 5px;border-radius:4px;white-space:nowrap">\uD83D\uDCC5</div>':'';
+    mesasHtml+='<div onclick="clickMesa(\''+m.id+'\')" style="position:absolute;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:1px;cursor:pointer;border-radius:'+bdr+';border:2px solid '+col+';background:'+col+'22;width:'+w+'px;height:'+h+'px;left:'+(m.pos_x||100)+'px;top:'+(m.pos_y||100)+'px;transition:.12s;-webkit-user-select:none">'
+      +listoBadge+resBadge
+      +'<div style="font-size:10px;color:'+col+';font-weight:700">'+(m.icon||'\uD83E\uDEAD')+'</div>'
+      +'<div style="font-size:11px;font-weight:700;color:var(--t1)">M'+m.num+'</div>'
+      +(tot?'<div style="font-size:9px;color:var(--gold);font-weight:700">'+tot+'</div>':'')
+      +'</div>';
+  });
+
+  canvas.innerHTML = zonasBg+svg+itemsHtml+mesasHtml;
+  canvas.style.transform='scale('+corePZoom+')'; canvas.style.transformOrigin='top left';
+}
+
+// ─── RESERVAS HOY (panel) ───
+let reservasPanelVisible = false;
+function toggleReservasHoy() {
+  reservasPanelVisible = !reservasPanelVisible;
+  const panel = document.getElementById('reservasHoyPanel');
+  if (panel) panel.style.display = reservasPanelVisible ? '' : 'none';
+  if (reservasPanelVisible) renderReservasHoyList();
+}
+function renderReservasHoyList() {
+  const el = document.getElementById('reservasHoyList');
+  if (!el) return;
+  const res = C.reservasHoy || [];
+  if (!res.length) { el.innerHTML = '<span style="font-size:12px;color:var(--t3)">Sin reservas para hoy</span>'; return; }
+  el.innerHTML = res.map(r => {
+    const mesa = r.mesa_id ? C.mesas.find(m=>m.id===r.mesa_id) : null;
+    const ecol = {pendiente:'var(--gold)',confirmada:'var(--teal)',completada:'var(--blue)'}[r.estado]||'var(--t3)';
+    return '<div style="display:flex;align-items:center;gap:8px;padding:5px 0;border-bottom:1px solid var(--bdr);font-size:12px">'
+      +'<span style="font-weight:700;font-family:var(--fm);color:var(--amber);min-width:36px">'+r.hora.slice(0,5)+'</span>'
+      +'<span style="font-weight:600;flex:1">'+r.nombre+'</span>'
+      +'<span style="color:var(--t2)">'+r.personas+' pax</span>'
+      +(mesa?'<span style="color:var(--t3);font-size:11px">M'+mesa.num+'</span>':'')
+      +'<span style="padding:1px 7px;border-radius:10px;font-size:10px;font-weight:700;background:'+ecol+'22;color:'+ecol+'">'+r.estado+'</span>'
+      +'</div>';
+  }).join('');
+}
+
 // ─── BOOT ───
 initLogin();
+
+
 </script>
 </body>
 </html>

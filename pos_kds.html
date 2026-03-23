@@ -95,6 +95,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 
 ::-webkit-scrollbar{width:5px;}
 ::-webkit-scrollbar-thumb{background:var(--surface2);border-radius:3px;}
+
+.station-pill{padding:5px 12px;border-radius:20px;border:1.5px solid var(--border);background:var(--surface);font-size:12px;font-weight:600;cursor:pointer;color:var(--text2);transition:.12s;white-space:nowrap;}
+.station-pill:hover{border-color:var(--amber);color:var(--amber);}
+.station-pill.active{font-weight:700;}
 </style>
 </head>
 <body>
@@ -118,6 +122,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
   <button class="kds-filter-btn" onclick="setFilter('listo',this)">🟢 Listos</button>
 </div>
 
+<div id="kdsStationBar" style="padding:8px 16px;background:var(--surface);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+  <span style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:1px;flex-shrink:0">&#x1F373; Estaci&#xF3;n:</span>
+  <div id="stationSelector" style="display:flex;gap:6px;flex-wrap:wrap"></div>
+</div>
 <div class="kds-body" id="kdsBody"></div>
 
 <div class="done-list" id="doneList">
@@ -129,6 +137,10 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 </div>
 
 <script>
+
+
+
+
 'use strict';
 
 // ─── SUPABASE ───
@@ -155,6 +167,8 @@ const doneIds = new Set(); // IDs entregados en esta sesión
 let doneOrders = [];
 let currentFilter = 'todos';
 let wsReady = false;
+let kdsStations = [];        // todas las estaciones disponibles
+let selectedStations = [];   // estaciones actualmente visibles (vacío = todas)
 
 // ─── REALTIME via WebSocket ───
 function initRealtime() {
@@ -338,14 +352,20 @@ function renderKDS() {
   // Más urgentes primero (más tiempo esperando = primero)
   filtered.sort((a, b) => a.ts - b.ts);
 
-  document.getElementById('kdsBody').innerHTML = filtered.map(o => {
+  document.getElementById('kdsBody').innerHTML = filtered.map(o => {// per order
     const mins = Math.floor((Date.now() - o.ts) / 60000);
     const timerClass = mins < 10 ? 'ok' : mins < 20 ? 'warn' : 'late';
     const cardClass  = mins >= 20 ? 'urgente' : mins >= 10 ? 'espera' : 'nuevo';
     const statusBadge = { nuevo:'badge-nuevo', 'en-curso':'badge-en-curso', listo:'badge-listo' }[o.status] || 'badge-nuevo';
     const statusText  = { nuevo:'Nuevo', 'en-curso':'En curso', listo:'Listo' }[o.status] || '—';
 
-    const itemsArr  = Array.isArray(o.items) ? o.items : Object.values(o.items || {});
+    // Filter items by selected station
+    let allItems = Array.isArray(o.items) ? o.items : Object.values(o.items || {});
+    const itemsArr = selectedStations.length === 0
+      ? allItems
+      : allItems.filter(item => itemBelongsToSelectedStations(item));
+    // Skip order entirely if it has no items for this station
+    if (!itemsArr.length) return '';
     const doneCount = Object.values(o.itemsDone).filter(Boolean).length;
     const total     = itemsArr.length;
 
@@ -481,10 +501,55 @@ function updateTime() {
 }
 
 // ─── BOOT ───
+
+// ─── STATION SELECTOR ───
+function renderStationSelector() {
+  const container = document.getElementById('stationSelector');
+  if (!container) return;
+  if (!kdsStations.length) {
+    container.innerHTML = '<span style="font-size:12px;color:var(--text2)">Todas las cocinas</span>';
+    return;
+  }
+  const allActive = selectedStations.length === 0;
+  let h = '<button class="station-pill'+(allActive?' active':'')+'" onclick="selectStation(null)">Todas</button>';
+  kdsStations.forEach(s => {
+    const on = selectedStations.includes(s.id);
+    const col = s.color||'#f59e0b';
+    h += '<button class="station-pill'+(on?' active':'')+'" onclick="selectStation(\''+(s.id)+'\''+')"'
+      + ' style="'+(on?'background:'+col+';color:#fff;border-color:'+col+';':'')+'">'
+      + (s.emoji||'\uD83C\uDF73')+' '+s.nombre+'</button>';
+  });
+  container.innerHTML = h;
+}
+
+function selectStation(id) {
+  if (id === null) { selectedStations = []; }
+  else {
+    const i = selectedStations.indexOf(id);
+    if (i >= 0) selectedStations.splice(i,1); else selectedStations.push(id);
+  }
+  renderStationSelector();
+  renderKDS();
+}
+
+function itemBelongsToSelectedStations(item) {
+  if (selectedStations.length === 0) return true;
+  const ids = item.kds_ids || [];
+  if (!ids.length) return true; // sin asignar → va a todas
+  return ids.some(id => selectedStations.includes(id));
+}
+
+
 async function initKDS() {
   updateTime();
   setInterval(updateTime, 10000);
   setConnStatus(false);
+
+  // 0. Cargar estaciones KDS
+  try {
+    kdsStations = await sbSel('pos_kds_stations','activa=eq.true&order=orden.asc');
+  } catch(_) { kdsStations = []; }
+  renderStationSelector();
 
   // 1. Carga inicial
   await loadPedidos();
@@ -499,7 +564,11 @@ async function initKDS() {
   setInterval(renderKDS, 30000);
 }
 
-initKDS();
+initKDS().catch(console.error);
+
+
+
+
 </script>
 </body>
 </html>
