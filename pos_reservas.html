@@ -69,7 +69,7 @@ select.fc{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 .loader{display:none;position:fixed;inset:0;background:rgba(250,250,248,.85);z-index:999;align-items:center;justify-content:center;font-size:14px;color:var(--text2);}
 .loader.on{display:flex;}
 </style>
-<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"><\/script>
+<script type="text/javascript" src="https://cdn.jsdelivr.net/npm/@emailjs/browser@4/dist/email.min.js"></script>
 </head>
 <body>
 
@@ -191,6 +191,7 @@ select.fc{background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.o
 </div>
 
 <script>
+
 /**
  * RestaurantePOS — Email Notifications via EmailJS
  * ==================================================
@@ -370,6 +371,11 @@ const HDR = {'apikey':SUPA_KEY,'Authorization':'Bearer '+SUPA_KEY,'Content-Type'
 
 async function sbSel(t,q=''){const r=await fetch(SUPA_URL+'/rest/v1/'+t+'?'+q,{headers:HDR});if(!r.ok)throw new Error(await r.text());return r.json();}
 async function sbIns(t,b){const r=await fetch(SUPA_URL+'/rest/v1/'+t,{method:'POST',headers:HDR,body:JSON.stringify(b)});if(!r.ok)throw new Error(await r.text());return r.json();}
+async function sbUpd(t,m,b){const q=Object.entries(m).map(([k,v])=>k+'=eq.'+encodeURIComponent(v)).join('&');const r=await fetch(SUPA_URL+'/rest/v1/'+t+'?'+q,{method:'PATCH',headers:HDR,body:JSON.stringify(b)});if(!r.ok)throw new Error(await r.text());return r.json();}
+// ─── UTILS ───
+function getParam(n){return new URLSearchParams(window.location.search).get(n)||'';}
+function haptic(){try{navigator.vibrate(10);}catch(_){}}
+
 
 // State
 let personas = 2, currentStep = 0, reservaId = null, preRating = 0;
@@ -437,8 +443,18 @@ async function init(){
     document.getElementById('rFecha').addEventListener('change', updateHoraOptions);
     updateHoraOptions();
 
-  } catch(e) { console.error(e); }
-  finally { load(false); }
+  } catch(e) {
+    console.error(e);
+    // Show error message instead of blank page
+    document.getElementById('loader').classList.remove('on');
+    document.querySelector('.section').innerHTML =
+      '<div style="text-align:center;padding:60px 20px">'
+      + '<div style="font-size:48px;margin-bottom:16px">⚠️</div>'
+      + '<div style="font-size:16px;font-weight:700;margin-bottom:8px">No se pudo cargar el formulario</div>'
+      + '<div style="font-size:13px;color:var(--text2);margin-bottom:20px">' + e.message + '</div>'
+      + '<button onclick="location.reload()" style="padding:12px 24px;background:var(--accent);color:#fff;border:none;border-radius:12px;font-size:14px;font-weight:700;cursor:pointer">Reintentar</button>'
+      + '</div>';
+  } finally { load(false); }
 }
 
 function showOffline(cfg) {
@@ -682,6 +698,8 @@ function setPreRating(n){
 }
 
 init();
+
+
 
 </script>
 </body>
